@@ -1,26 +1,71 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --accent: #4f46e5;
+  --text-primary: #1e2a4a;
+  --text-secondary: #3b4d73;
+  --bg-primary: #f7faff;
+  --bg-dark: #0d1428;
+  --text-dark: #e6edff;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
+  }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  body {
+    -webkit-font-smoothing: antialiased;
+    color: var(--text-primary);
+    background: var(--bg-primary);
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Global readability guard with blue-toned replacements */
+[class*='text-gray-400'] {
+  color: #51627f !important;
+}
+[class*='text-gray-500'] {
+  color: #3b4d73 !important;
+}
+[class*='text-gray-600'] {
+  color: #263556 !important;
+}
+[class*='text-indigo-100'] {
+  color: #dbe7ff !important;
+}
+
+@layer utilities {
+  .pb-safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+.dark body {
+  background: var(--bg-dark);
+  color: var(--text-dark);
+}
+
+.no-motion * {
+  animation: none !important;
+  transition: none !important;
+}
+
+.layout-compact .dashboard-block {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+@media print {
+  nav,
+  .no-print {
+    display: none !important;
+  }
 }

@@ -1,65 +1,120 @@
-import Image from "next/image";
+import Link from 'next/link'
+import { CalendarDays, Plus, Settings, Sparkles } from 'lucide-react'
+import { format } from 'date-fns'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+import Card from '@/components/ui/Card'
+import Button from '@/components/ui/Button'
+import Badge from '@/components/ui/Badge'
+import PersonalizedHeader from '@/components/dashboard/PersonalizedHeader'
 
-export default function Home() {
+export default async function DashboardPage() {
+  const supabase = createServerSupabaseClient()
+  const today = new Date().toISOString().slice(0, 10)
+  const weekDate = new Date()
+  weekDate.setDate(weekDate.getDate() + 7)
+  const nextWeek = weekDate.toISOString().slice(0, 10)
+
+  const [
+    termsResult,
+    classesResult,
+    teachersResult,
+    subjectsResult,
+    entriesResult,
+    eventsResult,
+  ] = await Promise.all([
+    supabase.from('terms').select('*').eq('is_active', true).limit(1),
+    supabase.from('classes').select('id', { count: 'exact', head: true }),
+    supabase.from('teachers').select('id', { count: 'exact', head: true }),
+    supabase.from('subjects').select('id', { count: 'exact', head: true }),
+    supabase.from('timetable_entries').select('id', { count: 'exact', head: true }),
+    supabase
+      .from('events')
+      .select('*')
+      .gte('event_date', today)
+      .lte('event_date', nextWeek)
+      .order('event_date', { ascending: true })
+      .limit(4),
+  ])
+
+  const hasSetupData =
+    (classesResult.count ?? 0) > 0 &&
+    (teachersResult.count ?? 0) > 0 &&
+    (subjectsResult.count ?? 0) > 0
+  const setupSteps = [
+    { label: 'Classes', done: (classesResult.count ?? 0) > 0 },
+    { label: 'Teachers', done: (teachersResult.count ?? 0) > 0 },
+    { label: 'Subjects', done: (subjectsResult.count ?? 0) > 0 },
+    { label: 'Period slots', done: true },
+    { label: 'Timetable', done: (entriesResult.count ?? 0) > 0 },
+  ]
+  const readiness = Math.round(
+    (setupSteps.filter((step) => step.done).length / setupSteps.length) * 100
+  )
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="px-4 py-6 space-y-5 bg-gradient-to-b from-indigo-50/70 to-purple-50/40 min-h-full">
+      <div>
+        <p className="text-sm text-gray-500">{format(new Date(), 'EEEE, dd MMM yyyy')}</p>
+        <h1 className="text-2xl font-bold text-gray-900">Timable</h1>
+        <p className="text-sm text-gray-500 mt-1">Build and adjust weekly teacher-class schedules fast.</p>
+        <PersonalizedHeader />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Card className="flex flex-col gap-1">
+          <CalendarDays size={18} className="text-indigo-500" />
+          <p className="text-2xl font-bold">{entriesResult.count ?? 0}</p>
+          <p className="text-xs text-gray-500">Scheduled entries</p>
+        </Card>
+        <Card className="flex flex-col gap-1">
+          <Sparkles size={18} className="text-violet-500" />
+          <p className="text-2xl font-bold">{eventsResult.data?.length ?? 0}</p>
+          <p className="text-xs text-gray-500">Events this week</p>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <Link href="/timetable/generate"><Button fullWidth className="h-14"><Plus size={16} />New Timetable</Button></Link>
+        <Link href="/setup"><Button fullWidth variant="secondary" className="h-14"><Settings size={16} />Setup Data</Button></Link>
+      </div>
+
+      <Card className="space-y-2">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold text-gray-800">Status</p>
+          <Badge label={hasSetupData ? 'Ready' : 'Needs setup'} variant={hasSetupData ? 'success' : 'warning'} />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <p className="text-xs text-gray-500">
+          Active term: {termsResult.data?.[0]?.name ?? 'Not set'} | Classes: {classesResult.count ?? 0} |
+          Teachers: {teachersResult.count ?? 0} | Subjects: {subjectsResult.count ?? 0}
+        </p>
+        <div className="h-2 rounded-full bg-indigo-100 overflow-hidden">
+          <div className="h-full bg-gradient-to-r from-indigo-500 to-violet-500" style={{ width: `${readiness}%` }} />
         </div>
-      </main>
+        <p className="text-xs text-indigo-700 font-semibold">Timetable readiness: {readiness}%</p>
+        <div className="grid grid-cols-2 gap-1 text-xs">
+          {setupSteps.map((step) => (
+            <p key={step.label} className={step.done ? 'text-green-600' : 'text-gray-500'}>
+              {step.done ? '✓' : '○'} {step.label}
+            </p>
+          ))}
+        </div>
+      </Card>
+
+      <Card className="space-y-2">
+        <p className="text-sm font-semibold text-gray-800">Upcoming events</p>
+        {(eventsResult.data ?? []).length === 0 ? (
+          <p className="text-xs text-gray-500">No events in the next 7 days.</p>
+        ) : (
+          <div className="space-y-2">
+            {(eventsResult.data ?? []).map((event) => (
+              <div key={event.id} className="flex items-center justify-between text-sm">
+                <p className="font-medium text-gray-700">{event.name}</p>
+                <Badge label={event.event_type} variant="default" />
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
     </div>
-  );
+  )
 }

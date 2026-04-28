@@ -1,0 +1,125 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase/client'
+import type { Teacher } from '@/types'
+import Button from '@/components/ui/Button'
+import Input from '@/components/ui/Input'
+import { readClassSubjectMap, readSubjectManualMeta, writeSubjectManualMeta } from '@/lib/setup-constants'
+
+export default function SubjectFormPage() {
+  const { id } = useParams<{ id: string }>()
+  const router = useRouter()
+  const isNew = id === 'new'
+  const [teachers, setTeachers] = useState<Teacher[]>([])
+  const [name, setName] = useState('')
+  const [periodsPerWeek, setPeriodsPerWeek] = useState(4)
+  const [colorLabel, setColorLabel] = useState('#6366f1')
+  const [category, setCategory] = useState<'core' | 'elective'>('core')
+  const [teacherIds, setTeacherIds] = useState<string[]>([])
+  const [shortName, setShortName] = useState('')
+  const [notes, setNotes] = useState('')
+  const [linkedClassCount, setLinkedClassCount] = useState(0)
+
+  useEffect(() => {
+    const manual = readSubjectManualMeta()
+    const classMap = readClassSubjectMap()
+    const count = Object.values(classMap).filter((subjectIds) => subjectIds.includes(id)).length
+    setTimeout(() => {
+      if (!isNew && manual[id]) {
+        setShortName(manual[id].shortName ?? '')
+        setNotes(manual[id].notes ?? '')
+      }
+      setLinkedClassCount(count)
+    }, 0)
+
+    supabase.from('teachers').select('*').eq('status', 'active').then(({ data }) => setTeachers(data ?? []))
+    if (isNew) return
+    supabase.from('subjects').select('*').eq('id', id).single().then(({ data }) => {
+      if (!data) return
+      setName(data.name ?? '')
+      setPeriodsPerWeek(data.periods_per_week ?? 4)
+      setColorLabel(data.color_label ?? '#6366f1')
+      setCategory(data.category ?? 'core')
+      setTeacherIds(data.teacher_ids ?? [])
+    })
+  }, [id, isNew])
+
+  const toggleTeacher = (teacherId: string) => {
+    setTeacherIds((prev) =>
+      prev.includes(teacherId) ? prev.filter((value) => value !== teacherId) : [...prev, teacherId]
+    )
+  }
+
+  const onSave = async () => {
+    if (!name.trim()) return
+    const payload = {
+      name: name.trim(),
+      periods_per_week: periodsPerWeek,
+      color_label: colorLabel,
+      category,
+      teacher_ids: teacherIds,
+    }
+    let subjectId = id
+    if (isNew) {
+      const { data } = await supabase.from('subjects').insert(payload).select('*').single()
+      subjectId = data?.id ?? id
+    } else {
+      await supabase.from('subjects').update(payload).eq('id', id)
+    }
+
+    const manual = readSubjectManualMeta()
+    manual[subjectId] = { shortName: shortName.trim(), notes: notes.trim() }
+    writeSubjectManualMeta(manual)
+    router.push('/setup/subjects')
+  }
+
+  return (
+    <div className="p-4 space-y-3">
+      <Input label="Subject name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Mathematics" />
+      <Input label="Periods per week" type="number" min={1} max={20} value={periodsPerWeek} onChange={(e) => setPeriodsPerWeek(Number(e.target.value))} />
+      <label className="flex items-center gap-2 text-sm text-gray-700">
+        Color
+        <input type="color" value={colorLabel} onChange={(e) => setColorLabel(e.target.value)} />
+      </label>
+      <select
+        className="w-full rounded-2xl border border-indigo-100 bg-white px-4 py-3 text-sm text-gray-800"
+        value={category}
+        onChange={(e) => setCategory(e.target.value as 'core' | 'elective')}
+      >
+        <option value="core">Core</option>
+        <option value="elective">Elective</option>
+      </select>
+      <Input label="Short name (manual data)" value={shortName} onChange={(e) => setShortName(e.target.value)} placeholder="Math" />
+      <label className="flex flex-col gap-1.5">
+        <span className="text-xs font-semibold text-gray-600">Notes (manual data)</span>
+        <textarea
+          className="w-full rounded-2xl border border-indigo-100 bg-white px-4 py-3 text-sm text-gray-800 min-h-20"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Optional subject notes..."
+        />
+      </label>
+      {!isNew ? (
+        <p className="text-xs text-indigo-600">
+          This subject is currently linked in class constants: {linkedClassCount} class(es).
+        </p>
+      ) : null}
+      <div className="space-y-1">
+        <p className="text-xs font-semibold text-gray-600">Teachers</p>
+        {teachers.map((teacher) => (
+          <label key={teacher.id} className="flex items-center gap-2 rounded-xl border border-indigo-100 bg-white px-3 py-2 text-sm">
+            <input
+              type="checkbox"
+              checked={teacherIds.includes(teacher.id)}
+              onChange={() => toggleTeacher(teacher.id)}
+            />
+            <span>{teacher.name}</span>
+          </label>
+        ))}
+      </div>
+      <Button fullWidth onClick={onSave}>Save Subject</Button>
+    </div>
+  )
+}
