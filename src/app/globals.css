@@ -17,18 +17,20 @@
 
   body {
     -webkit-font-smoothing: antialiased;
-    color: var(--text-primary);
+    color: var(--text-primary) !important;
     background: var(--bg-primary);
   }
 
   input,
   select,
-  textarea {
+  textarea,
+  button {
     font-size: 16px !important;
+    color: var(--text-primary) !important;
   }
 }
 
-/* Global readability guard with blue-toned replacements */
+/* ===== Global readability guard with blue-toned replacements ===== */
 [class*='text-gray-400'] {
   color: #51627f !important;
 }
@@ -38,8 +40,56 @@
 [class*='text-gray-600'] {
   color: #263556 !important;
 }
+[class*='text-gray-700'] {
+  color: #1e2a4a !important;
+}
+[class*='text-gray-800'],
+[class*='text-gray-900'] {
+  color: #16213d !important;
+}
+
+[class*='text-slate-'],
+[class*='text-zinc-'],
+[class*='text-neutral-'],
+[class*='text-stone-'] {
+  color: #22345c !important;
+}
+
 [class*='text-indigo-100'] {
   color: #dbe7ff !important;
+}
+[class*='text-indigo-'] {
+  color: #365df5 !important;
+}
+[class*='text-blue-'] {
+  color: #2563eb !important;
+}
+[class*='text-violet-'] {
+  color: #6d28d9 !important;
+}
+
+/* ===== Button enforcement ===== */
+button,
+.btn {
+  color: white !important;
+}
+
+[class*='bg-indigo-'],
+[class*='bg-blue-'],
+[class*='bg-violet-'] {
+  color: white !important;
+}
+
+/* ===== Cards / surfaces ===== */
+[class*='bg-white'],
+[class*='bg-slate-50'] {
+  color: var(--text-primary) !important;
+}
+
+/* ===== Links ===== */
+a {
+  color: inherit;
+  text-decoration: none;
 }
 
 @layer utilities {
@@ -50,7 +100,13 @@
 
 .dark body {
   background: var(--bg-dark);
-  color: var(--text-dark);
+  color: var(--text-dark) !important;
+}
+
+.dark [class*='text-gray-'],
+.dark [class*='text-slate-'],
+.dark [class*='text-zinc-'] {
+  color: #dbeafe !important;
 }
 
 .no-motion * {
