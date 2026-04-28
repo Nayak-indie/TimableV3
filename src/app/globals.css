@@ -1,12 +1,24 @@
 @import "tailwindcss";
 
 :root {
-  --accent: #4f46e5;
-  --text-primary: #1e2a4a;
-  --text-secondary: #3b4d73;
-  --bg-primary: #f7faff;
-  --bg-dark: #0d1428;
-  --text-dark: #e6edff;
+  --accent: #2563eb;
+  --accent-secondary: #1d4ed8;
+
+  --text-primary: #1e3a5f;
+  --text-secondary: #47678f;
+
+  --bg-primary: #eef6ff;
+  --bg-secondary: #dbeafe;
+  --bg-dark: #081120;
+
+  --surface-primary: rgba(255, 255, 255, 0.92);
+  --surface-secondary: rgba(219, 234, 254, 0.85);
+
+  --button-text: #ffffff;
+  --button-hover-text: #ffffff;
+
+  --hash-line: rgba(37, 99, 235, 0.06);
+  --text-dark: #eff6ff;
 }
 
 @layer base {
@@ -18,95 +30,151 @@
   body {
     -webkit-font-smoothing: antialiased;
     color: var(--text-primary) !important;
-    background: var(--bg-primary);
+    background:
+      linear-gradient(145deg, #f8fbff 0%, #eef6ff 45%, #dbeafe 100%);
+    min-height: 100vh;
+    position: relative;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(var(--hash-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--hash-line) 1px, transparent 1px);
+    background-size: 26px 26px;
+    z-index: 0;
   }
 
   input,
   select,
-  textarea,
-  button {
+  textarea {
     font-size: 16px !important;
     color: var(--text-primary) !important;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(37, 99, 235, 0.18);
   }
 }
 
-/* ===== Global readability guard with blue-toned replacements ===== */
-[class*='text-gray-400'] {
-  color: #51627f !important;
-}
-[class*='text-gray-500'] {
-  color: #3b4d73 !important;
-}
-[class*='text-gray-600'] {
-  color: #263556 !important;
-}
-[class*='text-gray-700'] {
-  color: #1e2a4a !important;
-}
+/* ===== TEXT FIXES ===== */
+[class*='text-gray-400'] { color: #6b8bb3 !important; }
+[class*='text-gray-500'] { color: #56789f !important; }
+[class*='text-gray-600'] { color: #3e628d !important; }
+[class*='text-gray-700'] { color: #27496d !important; }
 [class*='text-gray-800'],
-[class*='text-gray-900'] {
-  color: #16213d !important;
-}
+[class*='text-gray-900'] { color: #16324f !important; }
 
 [class*='text-slate-'],
 [class*='text-zinc-'],
 [class*='text-neutral-'],
 [class*='text-stone-'] {
-  color: #22345c !important;
+  color: #2a4c73 !important;
 }
 
-[class*='text-indigo-100'] {
-  color: #dbe7ff !important;
-}
-[class*='text-indigo-'] {
-  color: #365df5 !important;
-}
-[class*='text-blue-'] {
-  color: #2563eb !important;
-}
-[class*='text-violet-'] {
-  color: #6d28d9 !important;
-}
+[class*='text-indigo-'] { color: #2563eb !important; }
+[class*='text-blue-'] { color: #1d4ed8 !important; }
+[class*='text-violet-'] { color: #4f46e5 !important; }
 
-/* ===== Button enforcement ===== */
+/* ===== BUTTON FIX (main issue) ===== */
 button,
-.btn {
-  color: white !important;
+.btn,
+[type="button"],
+[type="submit"] {
+  color: var(--button-text) !important;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+  border: 1px solid rgba(147, 197, 253, 0.3);
+  transition: all 0.25s ease;
 }
 
-[class*='bg-indigo-'],
-[class*='bg-blue-'],
-[class*='bg-violet-'] {
-  color: white !important;
+/* Prevent disappearing text on hover */
+button:hover,
+.btn:hover,
+[type="button"]:hover,
+[type="submit"]:hover {
+  color: var(--button-hover-text) !important;
+  background: linear-gradient(135deg, #1d4ed8, #1e40af) !important;
+  opacity: 1 !important;
 }
 
-/* ===== Cards / surfaces ===== */
+/* Force nested spans/icons inside buttons */
+button *,
+.btn *,
+[type="button"] *,
+[type="submit"] * {
+  color: inherit !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+button:hover *,
+.btn:hover *,
+[type="button"]:hover *,
+[type="submit"]:hover * {
+  color: inherit !important;
+}
+
+/* Light buttons */
 [class*='bg-white'],
 [class*='bg-slate-50'] {
   color: var(--text-primary) !important;
 }
 
-/* ===== Links ===== */
+/* But if hovered, preserve readable contrast */
+[class*='bg-white']:hover,
+[class*='bg-slate-50']:hover {
+  color: #16324f !important;
+}
+
+/* ===== CARDS ===== */
+.dashboard-block,
+[class*='card'],
+[class*='bg-white'] {
+  background: linear-gradient(
+    145deg,
+    var(--surface-primary),
+    var(--surface-secondary)
+  ) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  backdrop-filter: blur(10px);
+}
+
+/* ===== LINKS ===== */
 a {
-  color: inherit;
+  color: #1d4ed8;
   text-decoration: none;
 }
 
+a:hover {
+  color: #1e40af;
+}
+
+/* ===== DARK MODE ===== */
+.dark body {
+  background:
+    linear-gradient(145deg, #020617 0%, #081120 45%, #102544 100%);
+  color: var(--text-dark) !important;
+}
+
+.dark .dashboard-block,
+.dark [class*='card'],
+.dark [class*='bg-white'] {
+  background: rgba(16, 37, 68, 0.92) !important;
+  color: var(--text-dark) !important;
+}
+
+.dark button,
+.dark .btn {
+  color: #ffffff !important;
+}
+
+/* ===== UTILITIES ===== */
 @layer utilities {
   .pb-safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
-}
-
-.dark body {
-  background: var(--bg-dark);
-  color: var(--text-dark) !important;
-}
-
-.dark [class*='text-gray-'],
-.dark [class*='text-slate-'],
-.dark [class*='text-zinc-'] {
-  color: #dbeafe !important;
 }
 
 .no-motion * {
