@@ -1,12 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import type { Class } from '@/types'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
+import { useDevDataSync } from '@/lib/dev/use-dev-data-sync'
+import { emitDevDataSync } from '@/lib/dev/data-sync'
+import EmptyState from '@/components/ui/EmptyState'
 
 export default function ClassesPage() {
   const [classes, setClasses] = useState<Class[]>([])
@@ -19,13 +22,10 @@ export default function ClassesPage() {
   const onDelete = async (id: string) => {
     await supabase.from('classes').delete().eq('id', id)
     await loadClasses()
+    emitDevDataSync()
   }
 
-  useEffect(() => {
-    supabase.from('classes').select('*').order('name').then(({ data }) => {
-      setClasses(data ?? [])
-    })
-  }, [])
+  useDevDataSync(loadClasses)
 
   return (
     <div className="p-4 space-y-3">
@@ -39,6 +39,18 @@ export default function ClassesPage() {
           <Button variant="ghost" onClick={() => onDelete(item.id)}><Trash2 size={16} /></Button>
         </Card>
       ))}
+      {classes.length === 0 ? (
+        <EmptyState
+          title="No classes yet"
+          description="Add a class to start building the timetable. New classes will populate this list immediately."
+          preview={(
+            <div className="grid gap-2">
+              <div className="h-12 rounded-xl bg-indigo-50 border border-indigo-100" />
+              <div className="h-12 rounded-xl bg-indigo-50 border border-indigo-100" />
+            </div>
+          )}
+        />
+      ) : null}
     </div>
   )
 }

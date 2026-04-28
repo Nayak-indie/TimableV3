@@ -9,12 +9,12 @@ export default function Button({ variant = 'primary', fullWidth = false, classNa
   return (
     <button
       className={cn(
-        'inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-sm font-semibold transition-all active:scale-95 shadow-sm',
+        'inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-sm font-semibold transition-all duration-200 active:scale-[0.98] shadow-sm',
         'disabled:opacity-50 disabled:cursor-not-allowed',
-        variant === 'primary' && 'bg-gradient-to-r from-indigo-500 to-violet-500 text-white hover:from-indigo-600 hover:to-violet-600',
-        variant === 'secondary' && 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100',
-        variant === 'danger' && 'bg-red-600 text-white hover:bg-red-700',
-        variant === 'ghost' && 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50',
+        variant === 'primary' && 'text-white hover:brightness-105',
+        variant === 'secondary' && 'bg-[var(--accent-soft)] text-[var(--text-primary)] hover:bg-[color-mix(in_srgb,var(--accent-soft)_70%,white)]',
+        variant === 'danger' && 'bg-red-600 text-white hover:bg-red-700 hover:brightness-105',
+        variant === 'ghost' && 'bg-[var(--surface-primary)] text-[var(--text-primary)] border border-[var(--border-color)] hover:bg-[var(--surface-secondary)]',
         fullWidth && 'w-full',
         className
       )}

@@ -1,11 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Button from '@/components/ui/Button'
 import { supabase } from '@/lib/supabase/client'
 import type { Class, Term } from '@/types'
 import Card from '@/components/ui/Card'
+import { useDevDataSync } from '@/lib/dev/use-dev-data-sync'
+import { emitDevDataSync } from '@/lib/dev/data-sync'
+import EmptyState from '@/components/ui/EmptyState'
 
 export default function GenerateTimetablePage() {
   const router = useRouter()
@@ -16,17 +19,18 @@ export default function GenerateTimetablePage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    Promise.all([
+  const loadOptions = async () => {
+    const [termsRes, classesRes] = await Promise.all([
       supabase.from('terms').select('*').order('start_date', { ascending: false }),
       supabase.from('classes').select('*').order('name'),
-    ]).then(([termsRes, classesRes]) => {
-      const fetchedTerms = termsRes.data ?? []
-      setTerms(fetchedTerms)
-      setClasses(classesRes.data ?? [])
-      if (fetchedTerms[0]) setTermId(fetchedTerms[0].id)
-    })
-  }, [])
+    ])
+    const fetchedTerms = termsRes.data ?? []
+    setTerms(fetchedTerms)
+    setClasses(classesRes.data ?? [])
+    if (fetchedTerms[0]) setTermId(fetchedTerms[0].id)
+  }
+
+  useDevDataSync(loadOptions)
 
   const toggleClass = (id: string) => {
     setSelectedClasses((prev) =>
@@ -48,6 +52,7 @@ export default function GenerateTimetablePage() {
     })
 
     if (response.ok) {
+      emitDevDataSync()
       router.push(`/timetable/${termId}`)
       return
     }
@@ -63,6 +68,18 @@ export default function GenerateTimetablePage() {
           <option key={term.id} value={term.id}>{term.name}</option>
         ))}
       </select>
+      {terms.length === 0 || classes.length === 0 ? (
+        <EmptyState
+          title="Nothing ready to generate yet"
+          description="Add a term and at least one class first. Once they exist, the generator list fills automatically."
+          preview={(
+            <div className="grid gap-2">
+              <div className="h-10 rounded-xl bg-indigo-50 border border-indigo-100" />
+              <div className="h-10 rounded-xl bg-indigo-50 border border-indigo-100" />
+            </div>
+          )}
+        />
+      ) : null}
       <div className="space-y-2">
         {classes.map((cls) => (
           <label key={cls.id} className="flex items-center gap-2 p-3 bg-white border border-gray-200 rounded-xl">

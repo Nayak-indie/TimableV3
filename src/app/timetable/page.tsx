@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import Link from 'next/link'
 import { CalendarPlus2 } from 'lucide-react'
 import { createServerSupabaseClient } from '@/lib/supabase/server'

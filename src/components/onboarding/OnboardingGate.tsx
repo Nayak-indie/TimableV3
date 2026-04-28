@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
-import { CheckCircle2, ChevronUp, Sparkles } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
+import { AnimatePresence, motion } from 'framer-motion'
+import { BookOpen, CheckCircle2, ChevronRight, Sparkles, X } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { readPreferences } from '@/lib/preferences'
+import { OPEN_SETUP_HELPER_EVENT } from '@/lib/dev/onboarding'
 
 const STORAGE_COMPLETE = 'timable_onboarding_complete'
 const STORAGE_DISMISSED = 'timable_onboarding_dismissed'
@@ -19,36 +20,35 @@ const steps = [
 
 export default function OnboardingGate() {
   const router = useRouter()
+  const pathname = usePathname()
   const [ready, setReady] = useState(false)
   const [show, setShow] = useState(false)
-  const [miniMode, setMiniMode] = useState(false)
   const [currentStep, setCurrentStep] = useState(0)
   const [isComplete, setIsComplete] = useState(false)
 
   useEffect(() => {
     const prefs = readPreferences()
-    if (!prefs.onboardingTips) {
-      setTimeout(() => {
-        setReady(true)
-        setShow(false)
-        setMiniMode(false)
-      }, 0)
-      return
+    const openHelper = () => {
+      setIsComplete(false)
+      setShow(true)
+      setReady(true)
     }
+
+    window.addEventListener(OPEN_SETUP_HELPER_EVENT, openHelper)
+
     const complete = localStorage.getItem(STORAGE_COMPLETE) === '1'
     const dismissed = localStorage.getItem(STORAGE_DISMISSED) === '1'
+
     setTimeout(() => {
       setIsComplete(complete)
-      setShow(!complete && !dismissed)
-      setMiniMode(false)
+      setShow(Boolean(prefs.onboardingTips) && !complete && !dismissed)
       setReady(true)
     }, 0)
+
+    return () => window.removeEventListener(OPEN_SETUP_HELPER_EVENT, openHelper)
   }, [])
 
-  const progress = useMemo(
-    () => Math.round(((currentStep + 1) / steps.length) * 100),
-    [currentStep]
-  )
+  const progress = useMemo(() => Math.round(((currentStep + 1) / steps.length) * 100), [currentStep])
 
   if (!ready) return null
 
@@ -57,17 +57,14 @@ export default function OnboardingGate() {
     localStorage.removeItem(STORAGE_DISMISSED)
     setIsComplete(true)
     setShow(false)
-    setMiniMode(false)
   }
 
   const dismissForNow = () => {
     localStorage.setItem(STORAGE_DISMISSED, '1')
     setShow(false)
-    setMiniMode(false)
   }
 
   const openCurrentStep = () => {
-    setMiniMode(true)
     setShow(false)
     router.push(steps[currentStep].href)
   }
@@ -77,133 +74,148 @@ export default function OnboardingGate() {
       <AnimatePresence>
         {show ? (
           <motion.div
-            className="fixed inset-0 z-[70] bg-black/35 backdrop-blur-sm p-4 flex items-end"
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-md"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
             <motion.div
-              className="w-full max-w-md mx-auto rounded-3xl border border-indigo-100 bg-white p-4 shadow-2xl"
-              initial={{ y: 30, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 20, opacity: 0 }}
+              className="w-full max-w-2xl overflow-hidden rounded-[28px] border border-[var(--border-color)] bg-[var(--surface-primary)] shadow-[var(--shadow-primary)]"
+              initial={{ y: 24, opacity: 0, scale: 0.98 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 16, opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.2 }}
             >
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-gray-800">Welcome to Timable</p>
-                <span className="text-xs font-semibold text-indigo-600">{progress}%</span>
+              <div className="flex items-start justify-between gap-4 border-b border-[var(--border-color)] px-5 py-4">
+                <div className="min-w-0">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-color)] bg-[var(--surface-secondary)] px-3 py-1 text-[11px] font-semibold text-[var(--text-secondary)]">
+                    <BookOpen size={12} />
+                    Setup guide
+                  </div>
+                  <p className="mt-3 text-lg font-semibold text-[var(--text-primary)]">Welcome to Timable</p>
+                  <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">
+                    Finish the core setup once, then reopen this guide whenever you want to add or check data.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-[var(--accent-soft)] px-3 py-1 text-xs font-semibold text-[var(--text-primary)]">
+                    {progress}%
+                  </span>
+                  <button
+                    type="button"
+                    className="rounded-full border border-[var(--border-color)] p-2 text-[var(--text-secondary)] transition hover:bg-[var(--surface-secondary)] hover:text-[var(--text-primary)]"
+                    onClick={dismissForNow}
+                    aria-label="Close setup guide"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
               </div>
-              <div className="h-2 mt-2 rounded-full bg-indigo-100 overflow-hidden">
+
+              <div className="h-1.5 overflow-hidden bg-[var(--surface-secondary)]">
                 <motion.div
-                  className="h-full bg-gradient-to-r from-indigo-500 to-violet-500"
+                  className="h-full bg-gradient-to-r from-indigo-500 via-violet-500 to-cyan-500"
                   initial={{ width: 0 }}
                   animate={{ width: `${progress}%` }}
                 />
               </div>
 
-              <div className="mt-4 rounded-2xl bg-indigo-50 p-3">
-                <p className="text-sm font-semibold text-gray-800">{steps[currentStep].title}</p>
-                <p className="text-xs text-gray-600 mt-1">{steps[currentStep].description}</p>
-                <button type="button" className="text-xs mt-2 inline-block text-indigo-600 font-semibold" onClick={openCurrentStep}>
-                  Open this step
+              <div className="grid gap-4 p-5 md:grid-cols-[1.08fr_0.92fr]">
+                <div className="rounded-3xl border border-[var(--border-color)] bg-[var(--surface-secondary)] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">Current step</p>
+                  <p className="mt-2 text-xl font-semibold text-[var(--text-primary)]">{steps[currentStep].title}</p>
+                  <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{steps[currentStep].description}</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button onClick={openCurrentStep}>
+                      Open this step
+                      <ChevronRight size={14} />
+                    </Button>
+                    <Button variant="ghost" onClick={dismissForNow}>Close</Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-secondary)]">Setup flow</p>
+                  <div className="space-y-2">
+                    {steps.map((step, idx) => {
+                      const isActive = idx === currentStep
+                      const isDone = idx < currentStep
+                      return (
+                        <button
+                          key={step.title}
+                          type="button"
+                          onClick={() => setCurrentStep(idx)}
+                          className={`flex w-full items-start gap-3 rounded-2xl border px-3 py-3 text-left transition ${
+                            isActive
+                              ? 'border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-[var(--surface-primary)] shadow-sm'
+                              : 'border-[var(--border-color)] bg-[var(--surface-secondary)] hover:bg-[var(--surface-primary)]'
+                          }`}
+                        >
+                          <span
+                            className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
+                              isDone
+                                ? 'bg-emerald-500 text-white'
+                                : isActive
+                                  ? 'bg-[var(--accent)] text-white'
+                                  : 'bg-[var(--surface-primary)] text-[var(--text-secondary)]'
+                            }`}
+                          >
+                            {isDone ? <CheckCircle2 size={12} /> : idx + 1}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-sm font-semibold text-[var(--text-primary)]">{step.title}</span>
+                            <span className="mt-0.5 block text-xs leading-5 text-[var(--text-secondary)]">{step.description}</span>
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-[var(--border-color)] px-5 py-4">
+                <button
+                  type="button"
+                  onClick={dismissForNow}
+                  className="text-xs font-semibold text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
+                >
+                  Remind me later
                 </button>
-              </div>
-
-              <div className="mt-4 space-y-2">
-                {steps.map((step, idx) => (
-                  <button
-                    key={step.title}
-                    type="button"
-                    onClick={() => setCurrentStep(idx)}
-                    className={`w-full text-left rounded-xl px-3 py-2 text-sm border transition ${
-                      idx === currentStep ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-gray-100 bg-white text-gray-500'
-                    }`}
-                  >
-                    {idx < currentStep ? '✓ ' : ''}{step.title}
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <Button variant="ghost" onClick={dismissForNow}>Resume later</Button>
                 {currentStep < steps.length - 1 ? (
-                  <Button onClick={() => setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1))}>Next</Button>
+                  <Button onClick={() => setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1))}>Next step</Button>
                 ) : (
                   <Button onClick={completeOnboarding}><CheckCircle2 size={16} />Finish</Button>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={completeOnboarding}
-                className="w-full mt-2 text-xs text-gray-500"
-              >
-                Skip onboarding
-              </button>
+
+              <div className="px-5 pb-5 text-center">
+                <button
+                  type="button"
+                  onClick={completeOnboarding}
+                  className="text-xs font-semibold text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
+                >
+                  Skip setup guide
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         ) : null}
       </AnimatePresence>
 
-      {miniMode && !isComplete ? (
-        <motion.div
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="fixed bottom-24 right-4 z-50 w-64 rounded-2xl border border-indigo-100 bg-white/95 backdrop-blur p-3 shadow-xl"
-        >
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-gray-700">Setup helper ({progress}%)</p>
-            <button
-              type="button"
-              className="text-xs text-indigo-600 font-semibold inline-flex items-center gap-1"
-              onClick={() => {
-                setShow(true)
-                setMiniMode(false)
-              }}
-            >
-              <ChevronUp size={12} /> Expand
-            </button>
-          </div>
-          <p className="mt-2 text-xs text-gray-600">{steps[currentStep].title}</p>
-          <div className="mt-2 space-y-1 max-h-28 overflow-auto">
-            {steps.map((step, idx) => (
-              <button
-                key={step.title}
-                type="button"
-                onClick={() => {
-                  setCurrentStep(idx)
-                  router.push(step.href)
-                }}
-                className={`w-full text-left rounded-lg px-2 py-1 text-xs ${
-                  idx === currentStep ? 'bg-indigo-50 text-indigo-700' : 'text-gray-500'
-                }`}
-              >
-                {idx + 1}. {step.title}
-              </button>
-            ))}
-          </div>
-          <div className="mt-2 grid grid-cols-2 gap-1">
-            <Button variant="ghost" className="!py-2 !px-2 !text-xs" onClick={dismissForNow}>Pause</Button>
-            {currentStep < steps.length - 1 ? (
-              <Button className="!py-2 !px-2 !text-xs" onClick={() => setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1))}>Next</Button>
-            ) : (
-              <Button className="!py-2 !px-2 !text-xs" onClick={completeOnboarding}>Finish</Button>
-            )}
-          </div>
-        </motion.div>
-      ) : null}
-
-      {!show && !isComplete ? (
-        <button
+      {!show && !isComplete && !(pathname ?? '').startsWith('/setup') ? (
+        <motion.button
           type="button"
           onClick={() => {
             localStorage.removeItem(STORAGE_DISMISSED)
             setShow(true)
-            setMiniMode(false)
           }}
-          className="fixed bottom-24 right-4 z-50 rounded-full bg-indigo-600 text-white px-3 py-2 text-xs font-semibold shadow-lg inline-flex items-center gap-1"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="fixed bottom-24 right-4 z-50 inline-flex items-center gap-2 rounded-full border border-[var(--border-color)] bg-[var(--surface-primary)] px-4 py-2 text-xs font-semibold text-[var(--text-primary)] shadow-[var(--shadow-primary)] transition hover:-translate-y-0.5 hover:bg-[var(--surface-secondary)]"
         >
-          <Sparkles size={14} /> Resume setup
-        </button>
+          <Sparkles size={14} />
+          Setup guide
+        </motion.button>
       ) : null}
     </>
   )

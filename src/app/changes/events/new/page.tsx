@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
+import { emitDevDataSync } from '@/lib/dev/data-sync'
 
 export default function NewEventPage() {
   const router = useRouter()
@@ -27,6 +28,7 @@ export default function NewEventPage() {
       setError(insertError.message)
       return
     }
+    emitDevDataSync()
     router.push('/changes')
   }
 

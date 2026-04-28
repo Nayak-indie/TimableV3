@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Pencil, Plus, Sparkles, Trash2, Users } from 'lucide-react'
+import { Pencil, Plus, Trash2, Users } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import Card from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
@@ -11,6 +11,9 @@ import Button from '@/components/ui/Button'
 import Skeleton from '@/components/ui/Skeleton'
 import type { Class, Subject, Teacher } from '@/types'
 import { parseTeacherMeta } from '@/lib/teacher-meta'
+import { useDevDataSync } from '@/lib/dev/use-dev-data-sync'
+import { emitDevDataSync } from '@/lib/dev/data-sync'
+import EmptyState from '@/components/ui/EmptyState'
 
 export default function TeachersPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([])
@@ -36,20 +39,10 @@ export default function TeachersPage() {
     await loadTeachers()
     setSuccessId(id)
     setTimeout(() => setSuccessId(''), 900)
+    emitDevDataSync()
   }
 
-  useEffect(() => {
-    Promise.all([
-      supabase.from('teachers').select('*').order('name'),
-      supabase.from('subjects').select('*'),
-      supabase.from('classes').select('*'),
-    ]).then(([teachersRes, subjectsRes, classesRes]) => {
-      setTeachers(teachersRes.data ?? [])
-      setSubjects(subjectsRes.data ?? [])
-      setClasses(classesRes.data ?? [])
-      setIsLoading(false)
-    })
-  }, [])
+  useDevDataSync(loadTeachers)
 
   useEffect(() => {
     const highlight = window.sessionStorage.getItem('teacher_saved')
@@ -143,11 +136,16 @@ export default function TeachersPage() {
       </AnimatePresence>
 
       {!isLoading && teachers.length === 0 ? (
-        <Card className="text-center py-8">
-          <Sparkles className="mx-auto text-indigo-500 mb-2" size={20} />
-          <p className="text-sm font-semibold text-gray-700">No teachers yet</p>
-          <p className="text-xs text-gray-500">Click below to add your first teacher.</p>
-        </Card>
+        <EmptyState
+          title="No teachers yet"
+          description="Add teachers with subjects, classes, and availability. Fresh rows will show here immediately."
+          preview={(
+            <div className="space-y-2">
+              <div className="h-12 rounded-xl bg-violet-50 border border-violet-100" />
+              <div className="h-12 rounded-xl bg-violet-50 border border-violet-100" />
+            </div>
+          )}
+        />
       ) : null}
 
       <Link href="/setup/teachers/new"><Button fullWidth><Plus size={16} />Add Teacher</Button></Link>

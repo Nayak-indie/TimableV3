@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
 import { CheckCircle2, Plus, Search } from 'lucide-react'
@@ -10,7 +10,9 @@ import Input from '@/components/ui/Input'
 import Card from '@/components/ui/Card'
 import type { Class, DayOfWeek, Subject, TeacherStatus } from '@/types'
 import { parseTeacherMeta, stringifyTeacherMeta } from '@/lib/teacher-meta'
-import { readClassSubjectMap } from '@/lib/setup-constants'
+import { fetchClassSubjectMap } from '@/lib/setup-links'
+import { useDevDataSync } from '@/lib/dev/use-dev-data-sync'
+import { emitDevDataSync } from '@/lib/dev/data-sync'
 
 type TeacherSection = 'basic' | 'availability' | 'status'
 const DAYS: DayOfWeek[] = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
@@ -43,28 +45,30 @@ export default function TeacherFormPage() {
   const [saved, setSaved] = useState(false)
   const [activeSection, setActiveSection] = useState<TeacherSection>('basic')
 
-  useEffect(() => {
-    Promise.all([
+  const loadFormData = async () => {
+    const [subjectsRes, classesRes, teacherRes] = await Promise.all([
       supabase.from('subjects').select('*').order('name'),
       supabase.from('classes').select('*').order('name'),
-    ]).then(([subjectsRes, classesRes]) => {
-      setSubjects(subjectsRes.data ?? [])
-      setClasses(classesRes.data ?? [])
-      setClassSubjectMap(readClassSubjectMap())
-    })
+      isNew ? Promise.resolve({ data: null }) : supabase.from('teachers').select('*').eq('id', params.id).single(),
+    ])
+    const classSubjectMapRes = await fetchClassSubjectMap(supabase)
+    setSubjects(subjectsRes.data ?? [])
+    setClasses(classesRes.data ?? [])
+    setClassSubjectMap(classSubjectMapRes)
     if (isNew) return
-    supabase.from('teachers').select('*').eq('id', params.id).single().then(({ data }) => {
-      if (!data) return
-      const meta = parseTeacherMeta(data)
-      setName(data.name)
-      setMaxPeriods(data.max_periods_per_day)
-      setStatus(data.status)
-      setTeacherCode(meta.code)
-      setSelectedClassIds(meta.classIds)
-      setAvailability(meta.availability)
-      setSelectedSubjects(data.subjects ?? [])
-    })
-  }, [isNew, params.id])
+    const data = teacherRes.data
+    if (!data) return
+    const meta = parseTeacherMeta(data)
+    setName(data.name)
+    setMaxPeriods(data.max_periods_per_day)
+    setStatus(data.status)
+    setTeacherCode(meta.code)
+    setSelectedClassIds(meta.classIds)
+    setAvailability(meta.availability)
+    setSelectedSubjects(data.subjects ?? [])
+  }
+
+  useDevDataSync(loadFormData, [isNew, params.id])
 
   const toggleSubject = (subjectId: string) => {
     setSelectedSubjects((prev) =>
@@ -117,6 +121,7 @@ export default function TeacherFormPage() {
     setSubjects((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
     setSelectedSubjects((prev) => [...prev, data.id])
     setSubjectSearch('')
+    emitDevDataSync()
   }
 
   const onSave = async () => {
@@ -142,6 +147,7 @@ export default function TeacherFormPage() {
     }
     window.sessionStorage.setItem('teacher_saved', savedId)
     setSaved(true)
+    emitDevDataSync()
     setTimeout(() => {
       router.push('/setup/teachers')
     }, 450)

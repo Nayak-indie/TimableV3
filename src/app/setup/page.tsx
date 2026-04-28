@@ -1,39 +1,25 @@
-import Link from 'next/link'
+export const dynamic = 'force-dynamic'
+
 import Card from '@/components/ui/Card'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import LiveSchoolOverview from '@/components/dashboard/LiveSchoolOverview'
+import SetupStatusLinks from '@/components/dashboard/SetupStatusLinks'
+import SetupHelperButton from '@/components/setup/SetupHelperButton'
 
-export default async function SetupPage() {
-  const supabase = createServerSupabaseClient()
-  const [teachers, classes, subjects, periods] = await Promise.all([
-    supabase.from('teachers').select('id', { count: 'exact', head: true }),
-    supabase.from('classes').select('id', { count: 'exact', head: true }),
-    supabase.from('subjects').select('id', { count: 'exact', head: true }),
-    supabase.from('period_slots').select('id', { count: 'exact', head: true }),
-  ])
-
-  const cards = [
-    { href: '/setup/classes', title: 'Classes', count: classes.count ?? 0 },
-    { href: '/setup/teachers', title: 'Teachers', count: teachers.count ?? 0 },
-    { href: '/setup/periods', title: 'Period Slots', count: periods.count ?? 0 },
-    ...(subjects.count && subjects.count > 0
-      ? [{ href: '/setup/subjects', title: 'Subjects', count: subjects.count }]
-      : []),
-  ]
-
+export default function SetupPage() {
   return (
     <div className="p-4 space-y-3">
       <Card className="bg-indigo-50 border-indigo-200">
-        <p className="text-sm font-semibold text-indigo-700">Guided setup</p>
-        <p className="text-xs text-indigo-600 mt-1">Start with Classes, then Teachers, then Period Slots, then Generate.</p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-indigo-700">Guided setup</p>
+            <p className="text-xs text-indigo-600 mt-1">Start with Classes, then Teachers, then Period Slots, then Generate.</p>
+          </div>
+          <SetupHelperButton />
+        </div>
       </Card>
-      {cards.map((card) => (
-        <Link key={card.href} href={card.href}>
-          <Card className="flex justify-between items-center">
-            <p className="font-semibold">{card.title}</p>
-            <p className="text-lg font-bold text-indigo-600">{card.count}</p>
-          </Card>
-        </Link>
-      ))}
+
+      <LiveSchoolOverview compact />
+      <SetupStatusLinks />
     </div>
   )
 }

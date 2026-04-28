@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { AlertTriangle } from 'lucide-react'
@@ -10,6 +10,7 @@ import type { Class, PeriodSlot, Subject, Teacher, TimetableEntry } from '@/type
 import { detectConflicts } from '@/lib/utils'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
+import { useDevDataSync } from '@/lib/dev/use-dev-data-sync'
 
 export default function TimetableDetailsPage() {
   const params = useParams<{ id: string }>()
@@ -20,23 +21,24 @@ export default function TimetableDetailsPage() {
   const [classes, setClasses] = useState<Class[]>([])
   const [activeClassId, setActiveClassId] = useState('')
 
-  useEffect(() => {
-    Promise.all([
+  const loadTimetable = async () => {
+    const [entriesRes, slotsRes, teachersRes, subjectsRes, classesRes] = await Promise.all([
       supabase.from('timetable_entries').select('*').eq('term_id', params.id),
       supabase.from('period_slots').select('*').order('number'),
       supabase.from('teachers').select('*'),
       supabase.from('subjects').select('*'),
       supabase.from('classes').select('*').order('name'),
-    ]).then(([entriesRes, slotsRes, teachersRes, subjectsRes, classesRes]) => {
-      setEntries(entriesRes.data ?? [])
-      setSlots(slotsRes.data ?? [])
-      setTeachers(teachersRes.data ?? [])
-      setSubjects(subjectsRes.data ?? [])
-      const classData = classesRes.data ?? []
-      setClasses(classData)
-      if (classData.length > 0) setActiveClassId(classData[0].id)
-    })
-  }, [params.id])
+    ])
+    setEntries(entriesRes.data ?? [])
+    setSlots(slotsRes.data ?? [])
+    setTeachers(teachersRes.data ?? [])
+    setSubjects(subjectsRes.data ?? [])
+    const classData = classesRes.data ?? []
+    setClasses(classData)
+    if (classData.length > 0) setActiveClassId(classData[0].id)
+  }
+
+  useDevDataSync(loadTimetable, [params.id])
 
   const filteredEntries = activeClassId
     ? entries.filter((entry) => entry.class_id === activeClassId)

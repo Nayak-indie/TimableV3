@@ -16,17 +16,31 @@ export async function POST(request: NextRequest) {
     supabase.from('period_slots').select('*').eq('slot_type', 'lesson').order('number'),
   ])
 
-  if (classesResult.error || teachersResult.error || subjectsResult.error || slotsResult.error) {
+  const [termResult, linksResult] = await Promise.all([
+    supabase.from('terms').select('working_days').eq('id', termId).single(),
+    supabase.from('class_subject_links').select('class_id, subject_id').in('class_id', classIds),
+  ])
+
+  if (classesResult.error || teachersResult.error || subjectsResult.error || slotsResult.error || termResult.error || linksResult.error) {
     return NextResponse.json({ error: 'Failed to fetch data' }, { status: 500 })
   }
 
   const periodsPerDay = slotsResult.data?.length ?? 6
+  const lessonSlotNumbers = (slotsResult.data ?? []).map((slot) => slot.number).filter((number) => typeof number === 'number')
+  const classSubjectMap = (linksResult.data ?? []).reduce<Record<string, string[]>>((acc, row) => {
+    if (!acc[row.class_id]) acc[row.class_id] = []
+    acc[row.class_id].push(row.subject_id)
+    return acc
+  }, {})
   const entries = generateTimetable({
     termId,
     classes: classesResult.data ?? [],
     teachers: teachersResult.data ?? [],
     subjects: subjectsResult.data ?? [],
     periodsPerDay,
+    lessonSlotNumbers,
+    workingDays: termResult.data?.working_days ?? undefined,
+    classSubjectMap,
   })
   if (entries.length === 0) {
     return NextResponse.json(

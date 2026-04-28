@@ -1,13 +1,18 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Beaker, Download, Info, LifeBuoy, Palette, RefreshCcw, RotateCcw, SlidersHorizontal, Upload, WandSparkles } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { CLASS_SUBJECTS_KEY, SUBJECT_META_KEY, type ClassSubjectMap } from '@/lib/setup-constants'
+import { supabase } from '@/lib/supabase/client'
 import { defaultPreferences, readPreferences, writePreferences } from '@/lib/preferences'
+import { emitDevDataSync } from '@/lib/dev/data-sync'
+import { applyThemeToRoot, THEME_TOKENS } from '@/lib/theme'
+import { replaceClassSubjectMap } from '@/lib/setup-links'
 
 function SectionTitle({ icon: Icon, title, subtitle }: { icon: React.ComponentType<{ size?: number; className?: string }>; title: string; subtitle: string }) {
   return (
@@ -22,6 +27,7 @@ function SectionTitle({ icon: Icon, title, subtitle }: { icon: React.ComponentTy
 }
 
 export default function SettingsPage() {
+  const router = useRouter()
   const [prefs, setPrefs] = useState(() => readPreferences())
   const [message, setMessage] = useState('')
   const [sampleDataLog, setSampleDataLog] = useState<Record<string, unknown> | null>(null)
@@ -31,15 +37,34 @@ export default function SettingsPage() {
   const apply = (next: typeof prefs) => {
     setPrefs(next)
     writePreferences(next)
-    const root = document.documentElement
-    root.style.setProperty('--accent', next.accentColor)
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    const darkMode = next.theme === 'dark' || (next.theme === 'system' && prefersDark)
-    root.classList.toggle('dark', darkMode)
-    root.classList.toggle('no-motion', !next.animations)
-    root.classList.toggle('layout-compact', next.dashboardLayout === 'compact')
-    root.classList.toggle('layout-spacious', next.dashboardLayout !== 'compact')
+    applyThemeToRoot(document.documentElement, next.theme)
+    document.documentElement.classList.toggle('no-motion', !next.animations)
+    document.documentElement.classList.toggle('layout-compact', next.dashboardLayout === 'compact')
+    document.documentElement.classList.toggle('layout-spacious', next.dashboardLayout !== 'compact')
   }
+
+  const themes = [
+    {
+      id: 'dusk-blue',
+      title: 'Dusk Blue',
+      description: 'Calm blue gradients, soft depth, elegant professional feel.',
+    },
+    {
+      id: 'dark-night',
+      title: 'Dark Night',
+      description: 'Deep dark tones, sleek contrast, minimal modern look.',
+    },
+    {
+      id: 'starry-night',
+      title: 'Starry Night',
+      description: 'Rich midnight palette with subtle glowing accents.',
+    },
+    {
+      id: 'glow-sun',
+      title: 'Glow Sun',
+      description: 'Warm golden highlights, bright energy, uplifting atmosphere.',
+    },
+  ] as const
 
   const backupPayload = useMemo(() => {
     return {
@@ -64,15 +89,22 @@ export default function SettingsPage() {
 
   const importData = (file: File) => {
     const reader = new FileReader()
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
         const parsed = JSON.parse(String(reader.result))
         if (parsed.preferences) apply({ ...defaultPreferences, ...parsed.preferences })
-        if (parsed.classSubjectMap) localStorage.setItem(CLASS_SUBJECTS_KEY, parsed.classSubjectMap)
+        if (parsed.classSubjectMap) {
+          const classSubjectMap = typeof parsed.classSubjectMap === 'string'
+            ? (JSON.parse(parsed.classSubjectMap) as ClassSubjectMap)
+            : (parsed.classSubjectMap as ClassSubjectMap)
+          await replaceClassSubjectMap(supabase, classSubjectMap)
+        }
         if (parsed.subjectMeta) localStorage.setItem(SUBJECT_META_KEY, parsed.subjectMeta)
         if (parsed.onboardingComplete) localStorage.setItem('timable_onboarding_complete', parsed.onboardingComplete)
         if (parsed.onboardingDismissed) localStorage.setItem('timable_onboarding_dismissed', parsed.onboardingDismissed)
         setMessage('Backup imported.')
+        emitDevDataSync()
+        router.refresh()
       } catch {
         setMessage('Invalid backup file.')
       }
@@ -105,11 +137,10 @@ export default function SettingsPage() {
       })
       const payload = await response.json()
       if (!response.ok || !payload.ok) throw new Error(payload.error ?? 'Failed to generate sample data')
-      if (payload.classSubjectMap) {
-        localStorage.setItem(CLASS_SUBJECTS_KEY, JSON.stringify(payload.classSubjectMap))
-      }
       setSampleDataLog(payload)
       setMessage('Temporary sample data generated successfully.')
+      emitDevDataSync()
+      router.refresh()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Failed to generate sample data.')
     } finally {
@@ -131,6 +162,8 @@ export default function SettingsPage() {
       localStorage.removeItem(CLASS_SUBJECTS_KEY)
       setSampleDataLog(null)
       setMessage('Temporary sample data removed.')
+      emitDevDataSync()
+      router.refresh()
     } catch {
       setMessage('Failed to reset sample data.')
     } finally {
@@ -145,18 +178,10 @@ export default function SettingsPage() {
       const response = await fetch('/api/dev/merge-subjects', { method: 'POST' })
       const payload = await response.json()
       if (!response.ok || !payload.ok) throw new Error(payload.error ?? 'Failed to merge duplicate subjects')
-      const mergeMap = (payload.mergeMap ?? {}) as Record<string, string>
-      if (Object.keys(mergeMap).length > 0) {
-        const rawMap = localStorage.getItem(CLASS_SUBJECTS_KEY)
-        const classSubjectMap = rawMap ? (JSON.parse(rawMap) as ClassSubjectMap) : {}
-        const updatedMap: ClassSubjectMap = {}
-        Object.entries(classSubjectMap).forEach(([classId, subjectIds]) => {
-          updatedMap[classId] = Array.from(new Set(subjectIds.map((id) => mergeMap[id] ?? id)))
-        })
-        localStorage.setItem(CLASS_SUBJECTS_KEY, JSON.stringify(updatedMap))
-      }
       setSampleDataLog(payload)
       setMessage(payload.removedCount > 0 ? `Merged duplicates. Removed ${payload.removedCount} subject entries.` : 'No duplicate subjects found.')
+      emitDevDataSync()
+      router.refresh()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Failed to merge duplicate subjects.')
     } finally {
@@ -171,23 +196,45 @@ export default function SettingsPage() {
           <SectionTitle icon={Palette} title="Personalization" subtitle="Make Timable feel yours." />
           <Input label="School / Institution Name" value={prefs.schoolName} onChange={(e) => apply({ ...prefs, schoolName: e.target.value })} />
           <Input label="Academic Year / Session" value={prefs.academicYear} onChange={(e) => apply({ ...prefs, academicYear: e.target.value })} />
-          <div className="grid grid-cols-2 gap-2">
-            <label className="text-xs font-semibold text-gray-600">Theme
-              <select className="mt-1 w-full rounded-xl border border-indigo-100 px-3 py-2 text-sm" value={prefs.theme} onChange={(e) => apply({ ...prefs, theme: e.target.value as typeof prefs.theme })}>
-                <option value="light">light</option>
-                <option value="dark">dark</option>
-                <option value="system">system</option>
-              </select>
-            </label>
-            <label className="text-xs font-semibold text-gray-600">Dashboard Layout
-              <select className="mt-1 w-full rounded-xl border border-indigo-100 px-3 py-2 text-sm" value={prefs.dashboardLayout} onChange={(e) => apply({ ...prefs, dashboardLayout: e.target.value as typeof prefs.dashboardLayout })}>
-                <option value="compact">compact</option>
-                <option value="spacious">spacious</option>
-              </select>
-            </label>
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-gray-600">Theme</p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {themes.map((theme) => {
+                const token = THEME_TOKENS[theme.id]
+                const isSelected = prefs.theme === theme.id
+                return (
+                  <button
+                    key={theme.id}
+                    type="button"
+                    onClick={() => apply({ ...prefs, theme: theme.id })}
+                    className={`text-left rounded-2xl border p-3 transition-all duration-200 ${
+                      isSelected ? 'border-indigo-400 shadow-lg shadow-indigo-200/40 scale-[1.01]' : 'border-gray-200 hover:border-indigo-200 hover:-translate-y-0.5'
+                    }`}
+                    style={{ background: `linear-gradient(135deg, ${token.background}, ${token.backgroundSecondary})` }}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold" style={{ color: token.textPrimary }}>{theme.title}</p>
+                        <p className="mt-1 text-xs leading-5" style={{ color: token.textSecondary }}>{theme.description}</p>
+                      </div>
+                      <div className="h-10 w-10 rounded-2xl border" style={{ borderColor: token.border, background: token.surface }} />
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <span className="h-2.5 w-10 rounded-full" style={{ backgroundColor: token.accent }} />
+                      <span className="h-2.5 w-10 rounded-full" style={{ backgroundColor: token.accentSoft }} />
+                      <span className="h-2.5 w-10 rounded-full" style={{ backgroundColor: token.surfaceElevated }} />
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
           </div>
-          <label className="text-xs font-semibold text-gray-600 inline-flex items-center gap-2">
-            Accent Color <input type="color" value={prefs.accentColor} onChange={(e) => apply({ ...prefs, accentColor: e.target.value })} />
+          <label className="text-xs font-semibold text-gray-600">
+            Dashboard Layout
+            <select className="mt-1 w-full rounded-xl border border-indigo-100 px-3 py-2 text-sm" value={prefs.dashboardLayout} onChange={(e) => apply({ ...prefs, dashboardLayout: e.target.value as typeof prefs.dashboardLayout })}>
+              <option value="compact">compact</option>
+              <option value="spacious">spacious</option>
+            </select>
           </label>
         </Card>
 

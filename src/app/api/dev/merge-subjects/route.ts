@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { fetchClassSubjectMap, replaceClassSubjectMap } from '@/lib/setup-links'
 
 interface SubjectRow {
   id: string
@@ -93,10 +95,24 @@ export async function POST() {
     await supabase.from('subjects').update({ teacher_ids: mergedTeacherIds }).eq('id', group.canonicalId)
   }
 
+  const classSubjectMap = await fetchClassSubjectMap(supabase)
+  const remappedClassSubjectMap = Object.fromEntries(
+    Object.entries(classSubjectMap).map(([classId, subjectIds]) => [
+      classId,
+      Array.from(new Set(subjectIds.map((subjectId) => mergeMap[subjectId] ?? subjectId))),
+    ])
+  )
+  await replaceClassSubjectMap(supabase, remappedClassSubjectMap)
+
   const allDuplicateIds = mergedGroups.flatMap((group) => group.removedIds)
   if (allDuplicateIds.length > 0) {
     await supabase.from('subjects').delete().in('id', allDuplicateIds)
   }
+
+  revalidatePath('/')
+  revalidatePath('/setup')
+  revalidatePath('/changes')
+  revalidatePath('/timetable')
 
   return NextResponse.json({
     ok: true,

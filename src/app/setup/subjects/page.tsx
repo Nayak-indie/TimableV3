@@ -1,14 +1,16 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Pencil } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import type { Class, Subject, Teacher } from '@/types'
 import Card from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
-import { readClassSubjectMap } from '@/lib/setup-constants'
+import EmptyState from '@/components/ui/EmptyState'
 import { parseTeacherMeta } from '@/lib/teacher-meta'
+import { useDevDataSync } from '@/lib/dev/use-dev-data-sync'
+import { fetchClassSubjectMap } from '@/lib/setup-links'
 
 export default function SubjectsPage() {
   const [subjects, setSubjects] = useState<Subject[]>([])
@@ -16,18 +18,20 @@ export default function SubjectsPage() {
   const [classes, setClasses] = useState<Class[]>([])
   const [classSubjectMap, setClassSubjectMap] = useState<Record<string, string[]>>({})
 
-  useEffect(() => {
-    Promise.all([
+  const loadSubjects = async () => {
+    const [subjectsRes, teachersRes, classesRes] = await Promise.all([
       supabase.from('subjects').select('*').order('name'),
       supabase.from('teachers').select('*').order('name'),
       supabase.from('classes').select('*').order('name'),
-    ]).then(([subjectsRes, teachersRes, classesRes]) => {
-      setSubjects(subjectsRes.data ?? [])
-      setTeachers(teachersRes.data ?? [])
-      setClasses(classesRes.data ?? [])
-      setClassSubjectMap(readClassSubjectMap())
-    })
-  }, [])
+    ])
+    const classSubjectMapRes = await fetchClassSubjectMap(supabase)
+    setSubjects(subjectsRes.data ?? [])
+    setTeachers(teachersRes.data ?? [])
+    setClasses(classesRes.data ?? [])
+    setClassSubjectMap(classSubjectMapRes)
+  }
+
+  useDevDataSync(loadSubjects)
 
   return (
     <div className="p-4 space-y-3">
@@ -69,11 +73,16 @@ export default function SubjectsPage() {
         </Card>
       ))}
       {subjects.length === 0 ? (
-        <Card>
-          <p className="text-sm text-gray-600">
-            No subjects yet. Add classes and subjects in class setup first.
-          </p>
-        </Card>
+        <EmptyState
+          title="No subjects yet"
+          description="Create or link subjects from a class. New subjects will fill this space as soon as they are added."
+          preview={(
+            <div className="grid gap-2">
+              <div className="h-10 rounded-xl bg-indigo-50 border border-indigo-100" />
+              <div className="h-10 rounded-xl bg-indigo-50 border border-indigo-100" />
+            </div>
+          )}
+        />
       ) : null}
     </div>
   )

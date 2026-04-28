@@ -1,13 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Plus } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import type { Subject } from '@/types'
-import { readClassSubjectMap, writeClassSubjectMap } from '@/lib/setup-constants'
+import { fetchClassSubjectMap, replaceClassSubjectLinks } from '@/lib/setup-links'
+import { useDevDataSync } from '@/lib/dev/use-dev-data-sync'
+import { emitDevDataSync } from '@/lib/dev/data-sync'
 
 export default function ClassFormPage() {
   const { id } = useParams<{ id: string }>()
@@ -23,22 +25,25 @@ export default function ClassFormPage() {
   const [newSubjectName, setNewSubjectName] = useState('')
   const [subjectSearch, setSubjectSearch] = useState('')
 
-  useEffect(() => {
-    supabase.from('subjects').select('*').order('name').then(({ data }) => {
-      setSubjects(data ?? [])
-    })
+  const loadFormData = async () => {
+    const [subjectsRes, classRes] = await Promise.all([
+      supabase.from('subjects').select('*').order('name'),
+      isNew ? Promise.resolve({ data: null }) : supabase.from('classes').select('*').eq('id', id).single(),
+    ])
+    setSubjects(subjectsRes.data ?? [])
     if (isNew) return
-    supabase.from('classes').select('*').eq('id', id).single().then(({ data }) => {
-      if (!data) return
-      setName(data.name ?? '')
-      setGradeLevel(data.grade_level ?? '')
-      setSection(data.section ?? '')
-      setPeriodsPerDay(data.periods_per_day ?? 6)
-      setRoomId(data.room_id ?? '')
-      const map = readClassSubjectMap()
-      setSelectedSubjectIds(map[id] ?? [])
-    })
-  }, [id, isNew])
+    const data = classRes.data
+    if (!data) return
+    setName(data.name ?? '')
+    setGradeLevel(data.grade_level ?? '')
+    setSection(data.section ?? '')
+    setPeriodsPerDay(data.periods_per_day ?? 6)
+    setRoomId(data.room_id ?? '')
+    const map = await fetchClassSubjectMap(supabase)
+    setSelectedSubjectIds(map[id] ?? [])
+  }
+
+  useDevDataSync(loadFormData, [id, isNew])
 
   const toggleSubject = (subjectId: string) => {
     setSelectedSubjectIds((prev) =>
@@ -96,6 +101,7 @@ export default function ClassFormPage() {
     setSubjects((prev) => [...prev, insertedSubject].sort((a, b) => a.name.localeCompare(b.name)))
     setSelectedSubjectIds((prev) => [...prev, insertedSubject.id])
     setNewSubjectName('')
+    emitDevDataSync()
   }
 
   const onSave = async () => {
@@ -114,9 +120,8 @@ export default function ClassFormPage() {
     } else {
       await supabase.from('classes').update(payload).eq('id', id)
     }
-    const map = readClassSubjectMap()
-    map[classId] = selectedSubjectIds
-    writeClassSubjectMap(map)
+    await replaceClassSubjectLinks(supabase, classId, selectedSubjectIds)
+    emitDevDataSync()
     router.push('/setup/classes')
   }
 

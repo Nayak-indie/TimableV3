@@ -1,12 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Plus, Save, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import type { PeriodSlot } from '@/types'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
+import { useDevDataSync } from '@/lib/dev/use-dev-data-sync'
+import { emitDevDataSync } from '@/lib/dev/data-sync'
+import EmptyState from '@/components/ui/EmptyState'
 
 interface DraftSlot {
   number: number
@@ -30,16 +33,12 @@ export default function PeriodsPage() {
     setDraft((prev) => ({ ...prev, number: (data?.length ?? 0) + 1 }))
   }
 
-  useEffect(() => {
-    supabase.from('period_slots').select('*').order('number').then(({ data }) => {
-      setSlots(data ?? [])
-      setDraft((prev) => ({ ...prev, number: (data?.length ?? 0) + 1 }))
-    })
-  }, [])
+  useDevDataSync(loadSlots)
 
   const addSlot = async () => {
     await supabase.from('period_slots').insert(draft)
     await loadSlots()
+    emitDevDataSync()
   }
 
   const updateSlot = async (slot: PeriodSlot) => {
@@ -53,11 +52,13 @@ export default function PeriodsPage() {
       })
       .eq('id', slot.id)
     await loadSlots()
+    emitDevDataSync()
   }
 
   const deleteSlot = async (id: string) => {
     await supabase.from('period_slots').delete().eq('id', id)
     await loadSlots()
+    emitDevDataSync()
   }
 
   return (
@@ -95,6 +96,18 @@ export default function PeriodsPage() {
           </div>
         </Card>
       ))}
+      {slots.length === 0 ? (
+        <EmptyState
+          title="No period slots yet"
+          description="Add lesson, break, or lunch slots. This list grows as soon as you save a slot."
+          preview={(
+            <div className="space-y-2">
+              <div className="h-10 rounded-xl bg-sky-50 border border-sky-100" />
+              <div className="h-10 rounded-xl bg-sky-50 border border-sky-100" />
+            </div>
+          )}
+        />
+      ) : null}
     </div>
   )
 }

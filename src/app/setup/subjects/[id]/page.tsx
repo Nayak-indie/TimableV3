@@ -1,12 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import type { Teacher } from '@/types'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
-import { readClassSubjectMap, readSubjectManualMeta, writeSubjectManualMeta } from '@/lib/setup-constants'
+import { readSubjectManualMeta, writeSubjectManualMeta } from '@/lib/setup-constants'
+import { fetchClassSubjectMap } from '@/lib/setup-links'
+import { useDevDataSync } from '@/lib/dev/use-dev-data-sync'
+import { emitDevDataSync } from '@/lib/dev/data-sync'
 
 export default function SubjectFormPage() {
   const { id } = useParams<{ id: string }>()
@@ -22,29 +25,32 @@ export default function SubjectFormPage() {
   const [notes, setNotes] = useState('')
   const [linkedClassCount, setLinkedClassCount] = useState(0)
 
-  useEffect(() => {
+  const loadFormData = async () => {
     const manual = readSubjectManualMeta()
-    const classMap = readClassSubjectMap()
+    const classMap = await fetchClassSubjectMap(supabase)
     const count = Object.values(classMap).filter((subjectIds) => subjectIds.includes(id)).length
-    setTimeout(() => {
-      if (!isNew && manual[id]) {
-        setShortName(manual[id].shortName ?? '')
-        setNotes(manual[id].notes ?? '')
-      }
-      setLinkedClassCount(count)
-    }, 0)
+    if (!isNew && manual[id]) {
+      setShortName(manual[id].shortName ?? '')
+      setNotes(manual[id].notes ?? '')
+    }
+    setLinkedClassCount(count)
 
-    supabase.from('teachers').select('*').eq('status', 'active').then(({ data }) => setTeachers(data ?? []))
+    const [teachersRes, subjectRes] = await Promise.all([
+      supabase.from('teachers').select('*').eq('status', 'active'),
+      isNew ? Promise.resolve({ data: null }) : supabase.from('subjects').select('*').eq('id', id).single(),
+    ])
+    setTeachers(teachersRes.data ?? [])
     if (isNew) return
-    supabase.from('subjects').select('*').eq('id', id).single().then(({ data }) => {
-      if (!data) return
-      setName(data.name ?? '')
-      setPeriodsPerWeek(data.periods_per_week ?? 4)
-      setColorLabel(data.color_label ?? '#6366f1')
-      setCategory(data.category ?? 'core')
-      setTeacherIds(data.teacher_ids ?? [])
-    })
-  }, [id, isNew])
+    const data = subjectRes.data
+    if (!data) return
+    setName(data.name ?? '')
+    setPeriodsPerWeek(data.periods_per_week ?? 4)
+    setColorLabel(data.color_label ?? '#6366f1')
+    setCategory(data.category ?? 'core')
+    setTeacherIds(data.teacher_ids ?? [])
+  }
+
+  useDevDataSync(loadFormData, [id, isNew])
 
   const toggleTeacher = (teacherId: string) => {
     setTeacherIds((prev) =>
@@ -72,6 +78,7 @@ export default function SubjectFormPage() {
     const manual = readSubjectManualMeta()
     manual[subjectId] = { shortName: shortName.trim(), notes: notes.trim() }
     writeSubjectManualMeta(manual)
+    emitDevDataSync()
     router.push('/setup/subjects')
   }
 
