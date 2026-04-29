@@ -3,7 +3,7 @@ import { stringifyTeacherMeta } from '@/lib/teacher-meta'
 import { replaceClassSubjectMap } from '@/lib/setup-links'
 import type { ClassSubjectMap } from '@/lib/setup-constants'
 import type { DayOfWeek } from '@/types'
-import { EMPTY_DEV_DB, cloneDevDb, createDevId, hasRealSupabaseConfig, type DevDb } from './dev-db'
+import { EMPTY_DEV_DB, cloneDevDb, createDevId, hasPublicSupabaseConfig, type DevDb } from './dev-db'
 import { writeDevDbFile } from './dev-db.server'
 
 export const DEV_SAMPLE_TAG = '[DEV_SAMPLE_TIMABLE_V3]'
@@ -66,6 +66,14 @@ const SECONDARY_CURRICULUM = ['English', 'Hindi', 'Mathematics', 'Science', 'Soc
 const SCIENCE_STREAM = ['English', 'Physics', 'Chemistry', 'Biology', 'Mathematics', 'Computer Science', 'Physical Education']
 const COMMERCE_STREAM = ['English', 'Economics', 'Business Studies', 'Accountancy', 'Mathematics', 'Computer Science', 'Political Science', 'Physical Education']
 const HUMANITIES_STREAM = ['English', 'History', 'Geography', 'Political Science', 'Economics', 'Mathematics', 'Computer Science', 'Physical Education']
+
+function assertSupabaseOk(result: any, label: string) {
+  if (!result) return
+  if (result.error) {
+    const message = typeof result.error?.message === 'string' ? result.error.message : String(result.error)
+    throw new Error(`${label} failed: ${message}`)
+  }
+}
 
 export const SAMPLE_DATASET = {
   classes: [
@@ -347,7 +355,7 @@ function buildDevSampleSnapshot(): GeneratedSampleSnapshot {
 }
 
 export async function resetSampleData(supabase: AppSupabaseClient) {
-  if (!hasRealSupabaseConfig()) {
+  if (!hasPublicSupabaseConfig()) {
     await writeDevDbFile(EMPTY_DEV_DB)
     return
   }
@@ -356,27 +364,31 @@ export async function resetSampleData(supabase: AppSupabaseClient) {
     supabase.from('classes').select('id').ilike('name', `${DEV_SAMPLE_TAG}%`),
     supabase.from('subjects').select('id').ilike('name', `${DEV_SAMPLE_TAG}%`),
   ])
+  assertSupabaseOk(sampleClassesRes, 'List sample classes')
+  assertSupabaseOk(sampleSubjectsRes, 'List sample subjects')
   const sampleClassIds = (sampleClassesRes.data ?? []).map((row: any) => row.id)
   const sampleSubjectIds = (sampleSubjectsRes.data ?? []).map((row: any) => row.id)
 
   if (sampleClassIds.length > 0) {
-    await supabase.from('class_subject_links').delete().in('class_id', sampleClassIds)
+    const res = await supabase.from('class_subject_links').delete().in('class_id', sampleClassIds)
+    assertSupabaseOk(res, 'Delete class_subject_links by class_id')
   }
   if (sampleSubjectIds.length > 0) {
-    await supabase.from('class_subject_links').delete().in('subject_id', sampleSubjectIds)
+    const res = await supabase.from('class_subject_links').delete().in('subject_id', sampleSubjectIds)
+    assertSupabaseOk(res, 'Delete class_subject_links by subject_id')
   }
 
-  await supabase.from('timetable_entries').delete().ilike('override_note', `${DEV_SAMPLE_TAG}%`)
-  await supabase.from('events').delete().ilike('name', `${DEV_SAMPLE_TAG}%`)
-  await supabase.from('teachers').delete().ilike('name', `${DEV_SAMPLE_TAG}%`)
-  await supabase.from('subjects').delete().ilike('name', `${DEV_SAMPLE_TAG}%`)
-  await supabase.from('classes').delete().ilike('name', `${DEV_SAMPLE_TAG}%`)
-  await supabase.from('period_slots').delete().gte('number', 101)
-  await supabase.from('terms').delete().ilike('name', `${DEV_SAMPLE_TAG}%`)
+  assertSupabaseOk(await supabase.from('timetable_entries').delete().ilike('override_note', `${DEV_SAMPLE_TAG}%`), 'Delete sample timetable entries')
+  assertSupabaseOk(await supabase.from('events').delete().ilike('name', `${DEV_SAMPLE_TAG}%`), 'Delete sample events')
+  assertSupabaseOk(await supabase.from('teachers').delete().ilike('name', `${DEV_SAMPLE_TAG}%`), 'Delete sample teachers')
+  assertSupabaseOk(await supabase.from('subjects').delete().ilike('name', `${DEV_SAMPLE_TAG}%`), 'Delete sample subjects')
+  assertSupabaseOk(await supabase.from('classes').delete().ilike('name', `${DEV_SAMPLE_TAG}%`), 'Delete sample classes')
+  assertSupabaseOk(await supabase.from('period_slots').delete().gte('number', 101), 'Delete sample period slots')
+  assertSupabaseOk(await supabase.from('terms').delete().ilike('name', `${DEV_SAMPLE_TAG}%`), 'Delete sample terms')
 }
 
 export async function generateSampleData(supabase: AppSupabaseClient) {
-  if (!hasRealSupabaseConfig()) {
+  if (!hasPublicSupabaseConfig()) {
     const snapshot = buildDevSampleSnapshot()
     await writeDevDbFile(snapshot.db)
     return snapshot.payload
@@ -384,7 +396,7 @@ export async function generateSampleData(supabase: AppSupabaseClient) {
 
   await resetSampleData(supabase)
 
-  const { data: term } = await supabase
+  const termResult = await supabase
     .from('terms')
     .insert({
       name: `${DEV_SAMPLE_TAG} Term 2026`,
@@ -395,6 +407,8 @@ export async function generateSampleData(supabase: AppSupabaseClient) {
     })
     .select('*')
     .single()
+  assertSupabaseOk(termResult, 'Insert term')
+  const term = termResult.data
 
   const classRows = SAMPLE_DATASET.classes.map((classSeed) => ({
     name: `${DEV_SAMPLE_TAG} ${classSeed.name}`,
@@ -403,7 +417,9 @@ export async function generateSampleData(supabase: AppSupabaseClient) {
     periods_per_day: classSeed.periodsPerDay,
     room_id: classSeed.roomId,
   }))
-  const { data: insertedClasses } = await supabase.from('classes').insert(classRows).select('*')
+  const insertedClassesResult = await supabase.from('classes').insert(classRows).select('*')
+  assertSupabaseOk(insertedClassesResult, 'Insert classes')
+  const insertedClasses = insertedClassesResult.data
   const classEntities = (insertedClasses ?? []) as InsertedEntity[]
   const classMap = new Map(classEntities.map((cls) => [cls.name.replace(`${DEV_SAMPLE_TAG} `, ''), cls]))
 
@@ -413,7 +429,9 @@ export async function generateSampleData(supabase: AppSupabaseClient) {
     color_label: subjectSeed.colorLabel,
     category: subjectSeed.category,
   }))
-  const { data: insertedSubjects } = await supabase.from('subjects').insert(subjectRows).select('*')
+  const insertedSubjectsResult = await supabase.from('subjects').insert(subjectRows).select('*')
+  assertSupabaseOk(insertedSubjectsResult, 'Insert subjects')
+  const insertedSubjects = insertedSubjectsResult.data
   const subjectEntities = (insertedSubjects ?? []) as InsertedEntity[]
   const subjectMap = new Map(subjectEntities.map((subject) => [subject.name.replace(`${DEV_SAMPLE_TAG} `, ''), subject]))
 
@@ -434,7 +452,9 @@ export async function generateSampleData(supabase: AppSupabaseClient) {
       contact_info: stringifyTeacherMeta({ code: teacherSeed.code, classIds, availability }),
     }
   })
-  const { data: insertedTeachers } = await supabase.from('teachers').insert(teacherRows).select('*')
+  const insertedTeachersResult = await supabase.from('teachers').insert(teacherRows).select('*')
+  assertSupabaseOk(insertedTeachersResult, 'Insert teachers')
+  const insertedTeachers = insertedTeachersResult.data
   const teacherEntities = (insertedTeachers ?? []) as InsertedEntity[]
 
   const teachersByCode = new Map(
@@ -466,7 +486,7 @@ export async function generateSampleData(supabase: AppSupabaseClient) {
     end_time: end,
     slot_type: 'lesson',
   }))
-  await supabase.from('period_slots').insert(slotsRows)
+  assertSupabaseOk(await supabase.from('period_slots').insert(slotsRows), 'Insert period slots')
 
   const classSubjectMap: ClassSubjectMap = {}
   SAMPLE_DATASET.classes.forEach((classSeed) => {

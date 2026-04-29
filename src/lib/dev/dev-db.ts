@@ -43,12 +43,21 @@ export const EMPTY_DEV_DB: DevDb = {
 
 const PLACEHOLDER_MARKERS = ['placeholder.supabase.co', 'placeholder-anon-key', 'placeholder-service-role-key']
 
-export function hasRealSupabaseConfig() {
+function containsPlaceholder(value: string) {
+  return PLACEHOLDER_MARKERS.some((marker) => value.includes(marker))
+}
+
+export function hasPublicSupabaseConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
+  if (!url || !anonKey) return false
+  return !containsPlaceholder(url) && !containsPlaceholder(anonKey)
+}
+
+export function hasServiceRoleKey() {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
-  if (!url || !anonKey || !serviceKey) return false
-  return !PLACEHOLDER_MARKERS.some((marker) => [url, anonKey, serviceKey].some((value) => value.includes(marker)))
+  if (!serviceKey) return false
+  return !containsPlaceholder(serviceKey)
 }
 
 export function normalizeDevDb(input: Partial<DevDb> | null | undefined): DevDb {

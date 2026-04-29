@@ -7,19 +7,24 @@ export async function POST(request: NextRequest) {
   const supabase = createServerSupabaseClient()
   const { action } = await request.json().catch(() => ({ action: 'generate' }))
 
-  if (action === 'reset') {
-    await resetSampleData(supabase)
+  try {
+    if (action === 'reset') {
+      await resetSampleData(supabase)
+      revalidatePath('/')
+      revalidatePath('/setup')
+      revalidatePath('/changes')
+      revalidatePath('/timetable')
+      return NextResponse.json({ ok: true, action: 'reset' })
+    }
+
+    const payload = await generateSampleData(supabase)
     revalidatePath('/')
     revalidatePath('/setup')
     revalidatePath('/changes')
     revalidatePath('/timetable')
-    return NextResponse.json({ ok: true, action: 'reset' })
+    return NextResponse.json({ ok: true, action: 'generate', ...payload })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to generate sample data'
+    return NextResponse.json({ ok: false, action, error: message }, { status: 500 })
   }
-
-  const payload = await generateSampleData(supabase)
-  revalidatePath('/')
-  revalidatePath('/setup')
-  revalidatePath('/changes')
-  revalidatePath('/timetable')
-  return NextResponse.json({ ok: true, action: 'generate', ...payload })
 }
