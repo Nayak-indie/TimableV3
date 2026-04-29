@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Pencil, Plus, Trash2, Users } from 'lucide-react'
-import { supabase } from '@/lib/supabase/client'
 import Card from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
@@ -24,18 +23,18 @@ export default function TeachersPage() {
 
   const loadTeachers = async () => {
     const [teachersRes, subjectsRes, classesRes] = await Promise.all([
-      supabase.from('teachers').select('*').order('name'),
-      supabase.from('subjects').select('*'),
-      supabase.from('classes').select('*'),
+      fetch('/api/data/teachers', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+      fetch('/api/data/subjects', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+      fetch('/api/data/classes', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
     ])
-    setTeachers(teachersRes.data ?? [])
-    setSubjects(subjectsRes.data ?? [])
-    setClasses(classesRes.data ?? [])
+    setTeachers(teachersRes?.ok ? teachersRes.data ?? [] : [])
+    setSubjects(subjectsRes?.ok ? subjectsRes.data ?? [] : [])
+    setClasses(classesRes?.ok ? classesRes.data ?? [] : [])
     setIsLoading(false)
   }
 
   const onDelete = async (id: string) => {
-    await supabase.from('teachers').delete().eq('id', id)
+    await fetch(`/api/data/teachers/${id}`, { method: 'DELETE' })
     await loadTeachers()
     setSuccessId(id)
     setTimeout(() => setSuccessId(''), 900)

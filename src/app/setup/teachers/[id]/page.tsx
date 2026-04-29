@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
 import { CheckCircle2, Plus, Search } from 'lucide-react'
-import { supabase } from '@/lib/supabase/client'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import Card from '@/components/ui/Card'
@@ -46,17 +45,17 @@ export default function TeacherFormPage() {
   const [activeSection, setActiveSection] = useState<TeacherSection>('basic')
 
   const loadFormData = async () => {
-    const [subjectsRes, classesRes, teacherRes] = await Promise.all([
-      supabase.from('subjects').select('*').order('name'),
-      supabase.from('classes').select('*').order('name'),
-      isNew ? Promise.resolve({ data: null }) : supabase.from('teachers').select('*').eq('id', params.id).single(),
+    const [subjectsRes, classesRes, teacherRes, classSubjectMapRes] = await Promise.all([
+      fetch('/api/data/subjects', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+      fetch('/api/data/classes', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+      isNew ? Promise.resolve({ ok: true, data: null }) : fetch(`/api/data/teachers/${params.id}`, { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+      fetchClassSubjectMap(),
     ])
-    const classSubjectMapRes = await fetchClassSubjectMap(supabase)
-    setSubjects(subjectsRes.data ?? [])
-    setClasses(classesRes.data ?? [])
+    setSubjects(subjectsRes?.ok ? subjectsRes.data ?? [] : [])
+    setClasses(classesRes?.ok ? classesRes.data ?? [] : [])
     setClassSubjectMap(classSubjectMapRes)
     if (isNew) return
-    const data = teacherRes.data
+    const data = teacherRes?.ok ? teacherRes.data : null
     if (!data) return
     const meta = parseTeacherMeta(data)
     setName(data.name)
@@ -108,15 +107,17 @@ export default function TeacherFormPage() {
   const createSubject = async () => {
     const nameToCreate = subjectSearch.trim()
     if (!nameToCreate) return
-    const { data } = await supabase
-      .from('subjects')
-      .insert({
+    const response = await fetch('/api/data/subjects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         name: nameToCreate,
         periods_per_week: 4,
         category: 'core',
-      })
-      .select('*')
-      .single()
+      }),
+    })
+    const created = await response.json().catch(() => null)
+    const data = created?.ok ? created.data : null
     if (!data) return
     setSubjects((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
     setSelectedSubjects((prev) => [...prev, data.id])
@@ -140,10 +141,11 @@ export default function TeacherFormPage() {
     }
     let savedId = params.id
     if (isNew) {
-      const { data } = await supabase.from('teachers').insert(payload).select('*').single()
-      savedId = data?.id ?? 'new'
+      const response = await fetch('/api/data/teachers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const created = await response.json().catch(() => null)
+      savedId = created?.ok ? (created.data?.id ?? 'new') : 'new'
     } else {
-      await supabase.from('teachers').update(payload).eq('id', params.id)
+      await fetch(`/api/data/teachers/${params.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     }
     window.sessionStorage.setItem('teacher_saved', savedId)
     setSaved(true)

@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { Plus, Save, Trash2 } from 'lucide-react'
-import { supabase } from '@/lib/supabase/client'
 import type { PeriodSlot } from '@/types'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
@@ -28,35 +27,38 @@ export default function PeriodsPage() {
   })
 
   const loadSlots = async () => {
-    const { data } = await supabase.from('period_slots').select('*').order('number')
-    setSlots(data ?? [])
-    setDraft((prev) => ({ ...prev, number: (data?.length ?? 0) + 1 }))
+    const response = await fetch('/api/data/period-slots', { cache: 'no-store' })
+    const payload = await response.json().catch(() => null)
+    if (!payload?.ok) return
+    setSlots(payload.data ?? [])
+    setDraft((prev) => ({ ...prev, number: (payload.data?.length ?? 0) + 1 }))
   }
 
   useDevDataSync(loadSlots)
 
   const addSlot = async () => {
-    await supabase.from('period_slots').insert(draft as any)
+    await fetch('/api/data/period-slots', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) })
     await loadSlots()
     emitDevDataSync()
   }
 
   const updateSlot = async (slot: PeriodSlot) => {
-    await supabase
-      .from('period_slots')
-      .update({
+    await fetch(`/api/data/period-slots/${slot.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         number: slot.number,
         start_time: slot.start_time,
         end_time: slot.end_time,
         slot_type: slot.slot_type,
-      })
-      .eq('id', slot.id)
+      }),
+    })
     await loadSlots()
     emitDevDataSync()
   }
 
   const deleteSlot = async (id: string) => {
-    await supabase.from('period_slots').delete().eq('id', id)
+    await fetch(`/api/data/period-slots/${id}`, { method: 'DELETE' })
     await loadSlots()
     emitDevDataSync()
   }

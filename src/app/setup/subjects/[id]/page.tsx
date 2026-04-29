@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase/client'
 import type { Teacher } from '@/types'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
@@ -27,7 +26,7 @@ export default function SubjectFormPage() {
 
   const loadFormData = async () => {
     const manual = readSubjectManualMeta()
-    const classMap = await fetchClassSubjectMap(supabase)
+    const classMap = await fetchClassSubjectMap()
     const count = Object.values(classMap).filter((subjectIds) => subjectIds.includes(id)).length
     if (!isNew && manual[id]) {
       setShortName(manual[id].shortName ?? '')
@@ -36,12 +35,12 @@ export default function SubjectFormPage() {
     setLinkedClassCount(count)
 
     const [teachersRes, subjectRes] = await Promise.all([
-      supabase.from('teachers').select('*').eq('status', 'active'),
-      isNew ? Promise.resolve({ data: null }) : supabase.from('subjects').select('*').eq('id', id).single(),
+      fetch('/api/data/teachers', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+      isNew ? Promise.resolve({ ok: true, data: null }) : fetch(`/api/data/subjects/${id}`, { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
     ])
-    setTeachers(teachersRes.data ?? [])
+    setTeachers(teachersRes?.ok ? (teachersRes.data ?? []).filter((t: any) => t.status === 'active') : [])
     if (isNew) return
-    const data = subjectRes.data
+    const data = subjectRes?.ok ? subjectRes.data : null
     if (!data) return
     setName(data.name ?? '')
     setPeriodsPerWeek(data.periods_per_week ?? 4)
@@ -69,10 +68,11 @@ export default function SubjectFormPage() {
     }
     let subjectId = id
     if (isNew) {
-      const { data } = await supabase.from('subjects').insert(payload).select('*').single()
-      subjectId = data?.id ?? id
+      const response = await fetch('/api/data/subjects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const created = await response.json().catch(() => null)
+      subjectId = created?.ok ? (created.data?.id ?? id) : id
     } else {
-      await supabase.from('subjects').update(payload).eq('id', id)
+      await fetch(`/api/data/subjects/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     }
 
     const manual = readSubjectManualMeta()

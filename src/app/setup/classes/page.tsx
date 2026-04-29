@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
-import { supabase } from '@/lib/supabase/client'
 import type { Class } from '@/types'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
@@ -15,12 +14,14 @@ export default function ClassesPage() {
   const [classes, setClasses] = useState<Class[]>([])
 
   const loadClasses = async () => {
-    const { data } = await supabase.from('classes').select('*').order('name')
-    setClasses(data ?? [])
+    const response = await fetch('/api/data/classes', { cache: 'no-store' })
+    const payload = await response.json().catch(() => null)
+    if (!payload?.ok) return
+    setClasses(payload.data ?? [])
   }
 
   const onDelete = async (id: string) => {
-    await supabase.from('classes').delete().eq('id', id)
+    await fetch(`/api/data/classes/${id}`, { method: 'DELETE' })
     await loadClasses()
     emitDevDataSync()
   }

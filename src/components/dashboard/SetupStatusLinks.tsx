@@ -25,10 +25,10 @@ export default function SetupStatusLinks() {
 
   const loadSummary = async () => {
     try {
-      const response = await fetch('/api/dev/summary', { cache: 'no-store' })
+      const response = await fetch('/api/data/summary', { cache: 'no-store' })
       if (response.ok) {
-        const payload = (await response.json()) as Summary
-        setSummary(payload)
+        const payload = (await response.json()) as any
+        if (payload?.ok) setSummary(payload as Summary)
       }
     } finally {
       setReady(true)

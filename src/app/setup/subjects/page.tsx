@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { Pencil } from 'lucide-react'
-import { supabase } from '@/lib/supabase/client'
 import type { Class, Subject, Teacher } from '@/types'
 import Card from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
@@ -19,15 +18,15 @@ export default function SubjectsPage() {
   const [classSubjectMap, setClassSubjectMap] = useState<Record<string, string[]>>({})
 
   const loadSubjects = async () => {
-    const [subjectsRes, teachersRes, classesRes] = await Promise.all([
-      supabase.from('subjects').select('*').order('name'),
-      supabase.from('teachers').select('*').order('name'),
-      supabase.from('classes').select('*').order('name'),
+    const [subjectsRes, teachersRes, classesRes, classSubjectMapRes] = await Promise.all([
+      fetch('/api/data/subjects', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+      fetch('/api/data/teachers', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+      fetch('/api/data/classes', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+      fetchClassSubjectMap(),
     ])
-    const classSubjectMapRes = await fetchClassSubjectMap(supabase)
-    setSubjects(subjectsRes.data ?? [])
-    setTeachers(teachersRes.data ?? [])
-    setClasses(classesRes.data ?? [])
+    setSubjects(subjectsRes?.ok ? subjectsRes.data ?? [] : [])
+    setTeachers(teachersRes?.ok ? teachersRes.data ?? [] : [])
+    setClasses(classesRes?.ok ? classesRes.data ?? [] : [])
     setClassSubjectMap(classSubjectMapRes)
   }
 

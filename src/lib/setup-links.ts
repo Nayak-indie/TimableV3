@@ -6,7 +6,19 @@ export interface ClassSubjectLinkRow {
   subject_id: string
 }
 
-export async function fetchClassSubjectMap(supabase: AppSupabaseClient): Promise<ClassSubjectMap> {
+export async function fetchClassSubjectMap(supabase?: AppSupabaseClient): Promise<ClassSubjectMap> {
+  if (!supabase && typeof window !== 'undefined') {
+    const response = await fetch('/api/data/class-subject-links', { cache: 'no-store' })
+    const payload = await response.json().catch(() => null)
+    if (!payload?.ok || !payload.data) return {}
+    return (payload.data as ClassSubjectLinkRow[]).reduce<ClassSubjectMap>((acc, row) => {
+      if (!acc[row.class_id]) acc[row.class_id] = []
+      acc[row.class_id].push(row.subject_id)
+      return acc
+    }, {})
+  }
+
+  if (!supabase) return {}
   const { data, error } = await supabase.from('class_subject_links').select('class_id, subject_id')
   if (error || !data) return {}
 
@@ -52,4 +64,3 @@ export async function replaceClassSubjectMap(
     await supabase.from('class_subject_links').insert(rows)
   }
 }
-

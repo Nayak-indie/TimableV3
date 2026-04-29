@@ -3,11 +3,10 @@
 import { useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Plus } from 'lucide-react'
-import { supabase } from '@/lib/supabase/client'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import type { Subject } from '@/types'
-import { fetchClassSubjectMap, replaceClassSubjectLinks } from '@/lib/setup-links'
+import { fetchClassSubjectMap } from '@/lib/setup-links'
 import { useDevDataSync } from '@/lib/dev/use-dev-data-sync'
 import { emitDevDataSync } from '@/lib/dev/data-sync'
 
@@ -27,19 +26,19 @@ export default function ClassFormPage() {
 
   const loadFormData = async () => {
     const [subjectsRes, classRes] = await Promise.all([
-      supabase.from('subjects').select('*').order('name'),
-      isNew ? Promise.resolve({ data: null }) : supabase.from('classes').select('*').eq('id', id).single(),
+      fetch('/api/data/subjects', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+      isNew ? Promise.resolve({ ok: true, data: null }) : fetch(`/api/data/classes/${id}`, { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
     ])
-    setSubjects(subjectsRes.data ?? [])
+    setSubjects(subjectsRes?.ok ? subjectsRes.data ?? [] : [])
     if (isNew) return
-    const data = classRes.data
+    const data = classRes?.ok ? classRes.data : null
     if (!data) return
     setName(data.name ?? '')
     setGradeLevel(data.grade_level ?? '')
     setSection(data.section ?? '')
     setPeriodsPerDay(data.periods_per_day ?? 6)
     setRoomId(data.room_id ?? '')
-    const map = await fetchClassSubjectMap(supabase)
+    const map = await fetchClassSubjectMap()
     setSelectedSubjectIds(map[id] ?? [])
   }
 
@@ -66,36 +65,21 @@ export default function ClassFormPage() {
       return
     }
 
-    const { data: foundRows } = await supabase.from('subjects').select('*').ilike('name', rawName)
-    const exact = (foundRows ?? []).find(
-      (subject: any) => (subject.name ?? '').trim().toLowerCase() === normalized
-    ) as Subject | undefined
-    if (exact) {
-      setSubjects((prev) =>
-        prev.some((subject) => subject.id === exact.id)
-          ? prev
-          : [...prev, exact].sort((a, b) => a.name.localeCompare(b.name))
-      )
-      if (!selectedSubjectIds.includes(exact.id)) {
-        setSelectedSubjectIds((prev) => [...prev, exact.id])
-      }
-      setNewSubjectName('')
-      return
-    }
-
     const titleCase = rawName
       .split(' ')
       .map((word) => word[0]?.toUpperCase() + word.slice(1).toLowerCase())
       .join(' ')
-    const { data: inserted } = await supabase
-      .from('subjects')
-      .insert({
+    const response = await fetch('/api/data/subjects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         name: titleCase,
         periods_per_week: 4,
         category: 'core',
-      })
-      .select('*')
-      .single()
+      }),
+    })
+    const created = await response.json().catch(() => null)
+    const inserted = created?.ok ? created.data : null
     if (!inserted) return
     const insertedSubject = inserted as Subject
     setSubjects((prev) => [...prev, insertedSubject].sort((a, b) => a.name.localeCompare(b.name)))
@@ -115,12 +99,13 @@ export default function ClassFormPage() {
     }
     let classId = id
     if (isNew) {
-      const { data } = await supabase.from('classes').insert(payload).select('*').single()
-      classId = data?.id ?? id
+      const response = await fetch('/api/data/classes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      const created = await response.json().catch(() => null)
+      classId = created?.ok ? (created.data?.id ?? id) : id
     } else {
-      await supabase.from('classes').update(payload).eq('id', id)
+      await fetch(`/api/data/classes/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     }
-    await replaceClassSubjectLinks(supabase, classId, selectedSubjectIds)
+    await fetch('/api/data/class-subject-links', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ classId, subjectIds: selectedSubjectIds }) })
     emitDevDataSync()
     router.push('/setup/classes')
   }
