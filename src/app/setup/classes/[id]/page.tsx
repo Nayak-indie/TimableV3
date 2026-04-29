@@ -57,7 +57,7 @@ export default function ClassFormPage() {
     const rawName = newSubjectName.trim().replace(/\s+/g, ' ')
     if (!rawName) return
     const normalized = rawName.toLowerCase()
-    const existing = subjects.find((subject) => subject.name.trim().toLowerCase() === normalized)
+    const existing = subjects.find((subject: Subject) => subject.name.trim().toLowerCase() === normalized)
     if (existing) {
       if (!selectedSubjectIds.includes(existing.id)) {
         setSelectedSubjectIds((prev) => [...prev, existing.id])
@@ -68,7 +68,7 @@ export default function ClassFormPage() {
 
     const { data: foundRows } = await supabase.from('subjects').select('*').ilike('name', rawName)
     const exact = (foundRows ?? []).find(
-      (subject) => (subject.name ?? '').trim().toLowerCase() === normalized
+      (subject: any) => (subject.name ?? '').trim().toLowerCase() === normalized
     ) as Subject | undefined
     if (exact) {
       setSubjects((prev) =>

@@ -26,12 +26,14 @@ export async function POST(request: NextRequest) {
   }
 
   const periodsPerDay = slotsResult.data?.length ?? 6
-  const lessonSlotNumbers = (slotsResult.data ?? []).map((slot) => slot.number).filter((number) => typeof number === 'number')
-  const classSubjectMap = (linksResult.data ?? []).reduce<Record<string, string[]>>((acc, row) => {
+  const lessonSlotNumbers = (slotsResult.data ?? [])
+    .map((slot: any) => slot.number)
+    .filter((number: any) => typeof number === 'number')
+  const classSubjectMap = (linksResult.data ?? []).reduce((acc: Record<string, string[]>, row: any) => {
     if (!acc[row.class_id]) acc[row.class_id] = []
     acc[row.class_id].push(row.subject_id)
     return acc
-  }, {})
+  }, {} as Record<string, string[]>)
   const entries = generateTimetable({
     termId,
     classes: classesResult.data ?? [],
@@ -51,7 +53,7 @@ export async function POST(request: NextRequest) {
 
   await supabase.from('timetable_entries').delete().eq('term_id', termId).in('class_id', classIds)
 
-  const { error: insertError } = await supabase.from('timetable_entries').insert(entries)
+  const { error: insertError } = await supabase.from('timetable_entries').insert(entries as any)
   if (insertError) {
     return NextResponse.json({ error: 'Failed to save timetable' }, { status: 500 })
   }

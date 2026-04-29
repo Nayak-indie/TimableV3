@@ -1,5 +1,6 @@
 import { createDevSupabaseClient, type DevSupabaseBackend } from './dev-supabase'
 import { hasRealSupabaseConfig, normalizeDevDb, type DevDb } from './dev-db'
+import type { AppSupabaseClient } from '../supabase/types'
 
 class DevBrowserBackend implements DevSupabaseBackend {
   async readDb() {
@@ -17,7 +18,7 @@ class DevBrowserBackend implements DevSupabaseBackend {
   }
 }
 
-export function createDevBrowserSupabaseClient() {
+export function createDevBrowserSupabaseClient(): AppSupabaseClient {
   return createDevSupabaseClient(new DevBrowserBackend())
 }
 

@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
+import type { AppSupabaseClient } from '@/lib/supabase/types'
 import type { ClassSubjectMap } from '@/lib/setup-constants'
 
 export interface ClassSubjectLinkRow {
@@ -6,11 +6,11 @@ export interface ClassSubjectLinkRow {
   subject_id: string
 }
 
-export async function fetchClassSubjectMap(supabase: SupabaseClient): Promise<ClassSubjectMap> {
+export async function fetchClassSubjectMap(supabase: AppSupabaseClient): Promise<ClassSubjectMap> {
   const { data, error } = await supabase.from('class_subject_links').select('class_id, subject_id')
   if (error || !data) return {}
 
-  return data.reduce<ClassSubjectMap>((acc, row) => {
+  return (data as ClassSubjectLinkRow[]).reduce<ClassSubjectMap>((acc, row) => {
     if (!acc[row.class_id]) acc[row.class_id] = []
     acc[row.class_id].push(row.subject_id)
     return acc
@@ -18,7 +18,7 @@ export async function fetchClassSubjectMap(supabase: SupabaseClient): Promise<Cl
 }
 
 export async function replaceClassSubjectLinks(
-  supabase: SupabaseClient,
+  supabase: AppSupabaseClient,
   classId: string,
   subjectIds: string[]
 ) {
@@ -33,7 +33,7 @@ export async function replaceClassSubjectLinks(
 }
 
 export async function replaceClassSubjectMap(
-  supabase: SupabaseClient,
+  supabase: AppSupabaseClient,
   classSubjectMap: ClassSubjectMap
 ) {
   const classIds = Object.keys(classSubjectMap)

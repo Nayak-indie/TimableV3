@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
+import type { AppSupabaseClient } from '@/lib/supabase/types'
 import { stringifyTeacherMeta } from '@/lib/teacher-meta'
 import { replaceClassSubjectMap } from '@/lib/setup-links'
 import type { ClassSubjectMap } from '@/lib/setup-constants'
@@ -346,7 +346,7 @@ function buildDevSampleSnapshot(): GeneratedSampleSnapshot {
   }
 }
 
-export async function resetSampleData(supabase: SupabaseClient) {
+export async function resetSampleData(supabase: AppSupabaseClient) {
   if (!hasRealSupabaseConfig()) {
     await writeDevDbFile(EMPTY_DEV_DB)
     return
@@ -356,8 +356,8 @@ export async function resetSampleData(supabase: SupabaseClient) {
     supabase.from('classes').select('id').ilike('name', `${DEV_SAMPLE_TAG}%`),
     supabase.from('subjects').select('id').ilike('name', `${DEV_SAMPLE_TAG}%`),
   ])
-  const sampleClassIds = (sampleClassesRes.data ?? []).map((row) => row.id)
-  const sampleSubjectIds = (sampleSubjectsRes.data ?? []).map((row) => row.id)
+  const sampleClassIds = (sampleClassesRes.data ?? []).map((row: any) => row.id)
+  const sampleSubjectIds = (sampleSubjectsRes.data ?? []).map((row: any) => row.id)
 
   if (sampleClassIds.length > 0) {
     await supabase.from('class_subject_links').delete().in('class_id', sampleClassIds)
@@ -375,7 +375,7 @@ export async function resetSampleData(supabase: SupabaseClient) {
   await supabase.from('terms').delete().ilike('name', `${DEV_SAMPLE_TAG}%`)
 }
 
-export async function generateSampleData(supabase: SupabaseClient) {
+export async function generateSampleData(supabase: AppSupabaseClient) {
   if (!hasRealSupabaseConfig()) {
     const snapshot = buildDevSampleSnapshot()
     await writeDevDbFile(snapshot.db)

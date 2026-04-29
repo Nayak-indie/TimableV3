@@ -16,7 +16,7 @@ export default async function EventsPage() {
   return (
     <div className="p-4 space-y-3">
       <Link href="/changes/events/new"><Button fullWidth>Add Event</Button></Link>
-      {(events ?? []).map((event) => (
+      {(events ?? []).map((event: any) => (
         <Card key={event.id} className="flex items-center justify-between">
           <div>
             <p className="font-semibold text-gray-800">{event.name}</p>

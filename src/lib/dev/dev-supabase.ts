@@ -1,3 +1,4 @@
+import type { AppQueryBuilder, AppSupabaseClient, QueryResult } from '../supabase/types'
 import { createDevId, normalizeDevDb, type DevDb, type DevRow, type DevTableName } from './dev-db'
 
 type OrderSpec = { column: string; ascending: boolean }
@@ -11,12 +12,6 @@ type Filter =
 export interface DevSupabaseBackend {
   readDb(): Promise<DevDb>
   writeDb(db: DevDb): Promise<void>
-}
-
-interface QueryResult<T = unknown> {
-  data: T | null
-  error: null | Error
-  count: number | null
 }
 
 function compareValues(left: unknown, right: unknown) {
@@ -83,7 +78,7 @@ function resolveTableAlias(table: string): DevTableName {
   return table as DevTableName
 }
 
-class DevQueryBuilder {
+class DevQueryBuilder implements AppQueryBuilder {
   private filters: Filter[] = []
 
   private orderSpecs: OrderSpec[] = []
@@ -231,7 +226,7 @@ class DevQueryBuilder {
   }
 }
 
-export class DevSupabaseClient {
+export class DevSupabaseClient implements AppSupabaseClient {
   constructor(private backend: DevSupabaseBackend) {}
 
   from(table: string) {
@@ -242,3 +237,4 @@ export class DevSupabaseClient {
 export function createDevSupabaseClient(backend: DevSupabaseBackend) {
   return new DevSupabaseClient(backend)
 }
+

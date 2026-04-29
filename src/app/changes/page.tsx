@@ -25,7 +25,7 @@ export default async function ChangesPage() {
         {(eventsResult.data ?? []).length === 0 ? (
           <p className="text-xs text-gray-500">No upcoming events.</p>
         ) : (
-          (eventsResult.data ?? []).map((event) => (
+          (eventsResult.data ?? []).map((event: any) => (
             <div key={event.id} className="flex items-center justify-between">
               <p className="text-sm font-medium text-gray-700">{event.name}</p>
               <Badge label={event.event_type} />
@@ -38,7 +38,7 @@ export default async function ChangesPage() {
         {(overridesResult.data ?? []).length === 0 ? (
           <p className="text-xs text-gray-500">No overrides applied yet.</p>
         ) : (
-          (overridesResult.data ?? []).map((override) => (
+          (overridesResult.data ?? []).map((override: any) => (
             <p key={override.id} className="text-sm text-gray-600">
               {override.day} period {override.period_number} | class {override.class_id}
             </p>

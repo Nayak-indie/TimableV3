@@ -16,7 +16,7 @@ export default async function TimetablePage() {
   const entries = entriesResult.data ?? []
 
   const byTerm = new Map<string, Set<string>>()
-  entries.forEach((entry) => {
+  entries.forEach((entry: any) => {
     if (!entry.term_id || !entry.class_id) return
     if (!byTerm.has(entry.term_id)) byTerm.set(entry.term_id, new Set<string>())
     byTerm.get(entry.term_id)?.add(entry.class_id)
@@ -25,7 +25,7 @@ export default async function TimetablePage() {
   return (
     <div className="p-4 space-y-3">
       <Link href="/timetable/generate"><Button fullWidth><CalendarPlus2 size={16} />Generate New Timetable</Button></Link>
-      {terms.map((term) => (
+      {terms.map((term: any) => (
         <Link key={term.id} href={`/timetable/${term.id}`}>
           <Card>
             <p className="font-semibold text-gray-800">{term.name}</p>

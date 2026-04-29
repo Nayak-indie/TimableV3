@@ -36,7 +36,7 @@ export default function PeriodsPage() {
   useDevDataSync(loadSlots)
 
   const addSlot = async () => {
-    await supabase.from('period_slots').insert(draft)
+    await supabase.from('period_slots').insert(draft as any)
     await loadSlots()
     emitDevDataSync()
   }
