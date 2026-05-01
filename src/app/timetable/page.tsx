@@ -5,6 +5,7 @@ import { CalendarPlus2 } from 'lucide-react'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
+import type { Term } from '@/types'
 
 export default async function TimetablePage() {
   const supabase = createServerSupabaseClient()
@@ -12,11 +13,11 @@ export default async function TimetablePage() {
     supabase.from('terms').select('*').order('start_date', { ascending: false }),
     supabase.from('timetable_entries').select('term_id,class_id'),
   ])
-  const terms = termsResult.data ?? []
-  const entries = entriesResult.data ?? []
+  const terms = (termsResult.data ?? []) as Term[]
+  const entries = (entriesResult.data ?? []) as Array<{ term_id?: string | null; class_id?: string | null }>
 
   const byTerm = new Map<string, Set<string>>()
-  entries.forEach((entry: any) => {
+  entries.forEach((entry) => {
     if (!entry.term_id || !entry.class_id) return
     if (!byTerm.has(entry.term_id)) byTerm.set(entry.term_id, new Set<string>())
     byTerm.get(entry.term_id)?.add(entry.class_id)
@@ -25,7 +26,7 @@ export default async function TimetablePage() {
   return (
     <div className="p-4 space-y-3">
       <Link href="/timetable/generate"><Button fullWidth><CalendarPlus2 size={16} />Generate New Timetable</Button></Link>
-      {terms.map((term: any) => (
+      {terms.map((term) => (
         <Link key={term.id} href={`/timetable/${term.id}`}>
           <Card>
             <p className="font-semibold text-gray-800">{term.name}</p>

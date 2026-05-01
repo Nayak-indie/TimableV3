@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { CalendarDays, LayoutDashboard, Settings, Sparkles, Wrench } from 'lucide-react'
+import { CalendarDays, LayoutDashboard, Network, Settings, Sparkles, Wrench } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const tabs = [
   { label: 'Dashboard', href: '/', icon: LayoutDashboard },
   { label: 'Setup', href: '/setup', icon: Wrench },
   { label: 'Timetable', href: '/timetable', icon: CalendarDays },
+  { label: 'Nexus', href: '/nexus', icon: Network },
   { label: 'Events', href: '/changes', icon: Sparkles },
   { label: 'Settings', href: '/settings', icon: Settings },
 ]
@@ -26,7 +27,7 @@ export default function BottomNav() {
               key={href}
               href={href}
               className={cn(
-                'flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-xl transition-colors',
+                'flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors',
                 isActive ? 'text-indigo-600 bg-indigo-50' : 'text-gray-400'
               )}
             >

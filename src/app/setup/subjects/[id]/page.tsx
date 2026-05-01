@@ -38,7 +38,7 @@ export default function SubjectFormPage() {
       fetch('/api/data/teachers', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
       isNew ? Promise.resolve({ ok: true, data: null }) : fetch(`/api/data/subjects/${id}`, { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
     ])
-    setTeachers(teachersRes?.ok ? (teachersRes.data ?? []).filter((t: any) => t.status === 'active') : [])
+    setTeachers(teachersRes?.ok ? ((teachersRes.data ?? []) as Teacher[]).filter((t) => t.status === 'active') : [])
     if (isNew) return
     const data = subjectRes?.ok ? subjectRes.data : null
     if (!data) return

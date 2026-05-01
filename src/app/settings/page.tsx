@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Beaker, Download, Info, LifeBuoy, Palette, RefreshCcw, RotateCcw, SlidersHorizontal, Upload, WandSparkles } from 'lucide-react'
+import { Beaker, Download, History, Info, LifeBuoy, Palette, RefreshCcw, RotateCcw, SlidersHorizontal, Upload, WandSparkles } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
@@ -11,8 +11,9 @@ import { CLASS_SUBJECTS_KEY, SUBJECT_META_KEY, type ClassSubjectMap } from '@/li
 import { supabase } from '@/lib/supabase/client'
 import { defaultPreferences, readPreferences, writePreferences } from '@/lib/preferences'
 import { emitDevDataSync } from '@/lib/dev/data-sync'
-import { applyThemeToRoot, THEME_TOKENS } from '@/lib/theme'
+import { applyThemeToRoot } from '@/lib/theme'
 import { replaceClassSubjectMap } from '@/lib/setup-links'
+import { appendHistoryEvent } from '@/lib/app-memory'
 
 function SectionTitle({ icon: Icon, title, subtitle }: { icon: React.ComponentType<{ size?: number; className?: string }>; title: string; subtitle: string }) {
   return (
@@ -65,6 +66,53 @@ export default function SettingsPage() {
       description: 'Warm golden highlights, bright energy, uplifting atmosphere.',
     },
   ] as const
+
+  const themePreview: Record<(typeof themes)[number]['id'], { background: string; backgroundSecondary: string; textPrimary: string; textSecondary: string; border: string; surface: string; accent: string; accentSoft: string; surfaceElevated: string }> = {
+    'dusk-blue': {
+      background: '#eef4ff',
+      backgroundSecondary: '#dce8ff',
+      textPrimary: '#16324f',
+      textSecondary: '#4b6786',
+      border: 'rgba(79, 126, 200, 0.18)',
+      surface: 'rgba(255, 255, 255, 0.84)',
+      accent: '#3b82f6',
+      accentSoft: 'rgba(59, 130, 246, 0.14)',
+      surfaceElevated: 'rgba(245, 250, 255, 0.96)',
+    },
+    'dark-night': {
+      background: '#070b14',
+      backgroundSecondary: '#111827',
+      textPrimary: '#e5eefc',
+      textSecondary: '#9db0cb',
+      border: 'rgba(148, 163, 184, 0.18)',
+      surface: 'rgba(15, 23, 42, 0.88)',
+      accent: '#60a5fa',
+      accentSoft: 'rgba(96, 165, 250, 0.18)',
+      surfaceElevated: 'rgba(20, 29, 48, 0.98)',
+    },
+    'starry-night': {
+      background: '#050816',
+      backgroundSecondary: '#111634',
+      textPrimary: '#edf3ff',
+      textSecondary: '#a9b7d7',
+      border: 'rgba(129, 140, 248, 0.2)',
+      surface: 'rgba(12, 17, 39, 0.9)',
+      accent: '#8b5cf6',
+      accentSoft: 'rgba(139, 92, 246, 0.2)',
+      surfaceElevated: 'rgba(19, 24, 53, 0.98)',
+    },
+    'glow-sun': {
+      background: '#fff9ef',
+      backgroundSecondary: '#fff1d6',
+      textPrimary: '#4a3212',
+      textSecondary: '#7b5b30',
+      border: 'rgba(214, 158, 46, 0.2)',
+      surface: 'rgba(255, 255, 255, 0.88)',
+      accent: '#f59e0b',
+      accentSoft: 'rgba(245, 158, 11, 0.16)',
+      surfaceElevated: 'rgba(255, 251, 241, 0.98)',
+    },
+  }
 
   const backupPayload = useMemo(() => {
     return {
@@ -127,7 +175,7 @@ export default function SettingsPage() {
   }
 
   const generateSampleData = async () => {
-    if (!window.confirm('Generate temporary testing sample data? Existing dev sample data will be replaced.')) return
+    if (!window.confirm('Generate temporary testing sample data? If sample data already exists, this will not overwrite it.')) return
     setIsGenerating(true)
     try {
       const response = await fetch('/api/dev/sample-data', {
@@ -138,7 +186,13 @@ export default function SettingsPage() {
       const payload = await response.json()
       if (!response.ok || !payload.ok) throw new Error(payload.error ?? 'Failed to generate sample data')
       setSampleDataLog(payload)
-      setMessage('Temporary sample data generated successfully.')
+      setMessage(payload.alreadyExisted ? 'Sample data already exists. Use reset to regenerate.' : 'Temporary sample data generated successfully.')
+      appendHistoryEvent({
+        type: 'sample_data_generated',
+        title: payload.alreadyExisted ? 'Sample data checked' : 'Sample data generated',
+        details: payload.counts ? `Classes ${payload.counts.classes}, Teachers ${payload.counts.teachers}, Subjects ${payload.counts.subjects}` : undefined,
+        payload,
+      })
       emitDevDataSync()
       router.refresh()
     } catch (error) {
@@ -162,6 +216,11 @@ export default function SettingsPage() {
       localStorage.removeItem(CLASS_SUBJECTS_KEY)
       setSampleDataLog(null)
       setMessage('Temporary sample data removed.')
+      appendHistoryEvent({
+        type: 'sample_data_reset',
+        title: 'Sample data reset',
+        payload,
+      })
       emitDevDataSync()
       router.refresh()
     } catch {
@@ -200,7 +259,7 @@ export default function SettingsPage() {
             <p className="text-xs font-semibold text-gray-600">Theme</p>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {themes.map((theme) => {
-                const token = THEME_TOKENS[theme.id]
+                const token = themePreview[theme.id]
                 const isSelected = prefs.theme === theme.id
                 return (
                   <button
@@ -279,6 +338,9 @@ export default function SettingsPage() {
             <Button variant="secondary" onClick={resetOnboarding}><RotateCcw size={14} />Reset onboarding</Button>
             <Button variant="danger" onClick={clearCache}>Clear cache</Button>
           </div>
+          <Button variant="ghost" onClick={() => router.push('/settings/history')}>
+            <History size={14} />History
+          </Button>
         </Card>
 
         <Card className="space-y-3 border-amber-200 bg-amber-50/70">

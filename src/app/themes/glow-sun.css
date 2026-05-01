@@ -1,0 +1,17 @@
+:root[data-theme='glow-sun'] {
+  color-scheme: light;
+  --accent: #f59e0b;
+  --accent-hover: #d97706;
+  --accent-soft: rgba(245, 158, 11, 0.16);
+  --bg-primary: #fff9ef;
+  --bg-secondary: #fff1d6;
+  --surface-primary: rgba(255, 255, 255, 0.88);
+  --surface-secondary: rgba(255, 251, 241, 0.98);
+  --text-primary: #4a3212;
+  --text-secondary: #7b5b30;
+  --border-color: rgba(214, 158, 46, 0.2);
+  --button-text: #ffffff;
+  --shadow-primary: 0 18px 48px rgba(214, 158, 46, 0.16);
+  --grid-line: rgba(245, 158, 11, 0.08);
+}
+

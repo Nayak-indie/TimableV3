@@ -4,7 +4,7 @@ import { replaceClassSubjectMap } from '@/lib/setup-links'
 import type { ClassSubjectMap } from '@/lib/setup-constants'
 import type { DayOfWeek } from '@/types'
 import { EMPTY_DEV_DB, cloneDevDb, createDevId, hasPublicSupabaseConfig, type DevDb } from './dev-db'
-import { writeDevDbFile } from './dev-db.server'
+import { readDevDbFile, writeDevDbFile } from './dev-db.server'
 
 export const DEV_SAMPLE_TAG = '[DEV_SAMPLE_TIMABLE_V3]'
 
@@ -67,10 +67,16 @@ const SCIENCE_STREAM = ['English', 'Physics', 'Chemistry', 'Biology', 'Mathemati
 const COMMERCE_STREAM = ['English', 'Economics', 'Business Studies', 'Accountancy', 'Mathematics', 'Computer Science', 'Political Science', 'Physical Education']
 const HUMANITIES_STREAM = ['English', 'History', 'Geography', 'Political Science', 'Economics', 'Mathematics', 'Computer Science', 'Physical Education']
 
-function assertSupabaseOk(result: any, label: string) {
+function assertSupabaseOk(result: { error?: unknown } | null | undefined, label: string) {
   if (!result) return
   if (result.error) {
-    const message = typeof result.error?.message === 'string' ? result.error.message : String(result.error)
+    const err = result.error
+    const message =
+      typeof err === 'object' &&
+      err !== null &&
+      typeof (err as Record<string, unknown>).message === 'string'
+        ? String((err as Record<string, unknown>).message)
+        : String(err)
     throw new Error(`${label} failed: ${message}`)
   }
 }
@@ -165,6 +171,7 @@ interface GeneratedSampleData {
   dataset: typeof SAMPLE_DATASET
   classSubjectAssignments: Record<string, string[]>
   teacherClassAssignments: Record<string, string[]>
+  alreadyExisted?: boolean
   counts: {
     classes: number
     subjects: number
@@ -181,6 +188,52 @@ interface GeneratedSampleData {
 interface GeneratedSampleSnapshot {
   db: DevDb
   payload: GeneratedSampleData
+}
+
+function hasDevSampleRows(db: DevDb) {
+  return db.classes.some((row) => typeof row?.name === 'string' && row.name.startsWith(DEV_SAMPLE_TAG))
+}
+
+function buildPayloadFromDevDb(db: DevDb): GeneratedSampleData {
+  const classRows = db.classes.filter((row) => typeof row?.name === 'string' && row.name.startsWith(DEV_SAMPLE_TAG))
+  const classIds = new Set(classRows.map((row) => String(row.id ?? '')))
+
+  const subjectRows = db.subjects.filter((row) => typeof row?.name === 'string' && row.name.startsWith(DEV_SAMPLE_TAG))
+  const teacherRows = db.teachers.filter((row) => typeof row?.name === 'string' && row.name.startsWith(DEV_SAMPLE_TAG))
+
+  const termRows = db.terms.filter((row) => typeof row?.name === 'string' && row.name.startsWith(DEV_SAMPLE_TAG))
+  const periodSlotRows = db.period_slots.filter((row) => {
+    const number = typeof row?.number === 'number' ? row.number : Number(row?.number)
+    return Number.isFinite(number) && number >= 101
+  })
+  const eventRows = db.events.filter((row) => typeof row?.name === 'string' && row.name.startsWith(DEV_SAMPLE_TAG))
+  const linkRows = db.class_subject_links.filter((row) => classIds.has(String(row.class_id ?? '')))
+
+  const classSubjectMap = classRows.reduce<ClassSubjectMap>((acc, row) => {
+    const id = String(row.id ?? '')
+    if (!id) return acc
+    acc[id] = linkRows.filter((link) => String(link.class_id ?? '') === id).map((link) => String(link.subject_id ?? '')).filter(Boolean)
+    return acc
+  }, {})
+
+  return {
+    tag: DEV_SAMPLE_TAG,
+    dataset: SAMPLE_DATASET,
+    classSubjectAssignments: SAMPLE_CLASS_SUBJECT_ASSIGNMENTS,
+    teacherClassAssignments: SAMPLE_TEACHER_CLASS_ASSIGNMENTS,
+    alreadyExisted: true,
+    counts: {
+      classes: classRows.length,
+      subjects: subjectRows.length,
+      teachers: teacherRows.length,
+      periodSlots: periodSlotRows.length,
+      terms: termRows.length,
+      classSubjectLinks: linkRows.length,
+      events: eventRows.length,
+    },
+    classSubjectMap,
+    teacherClassAssignment: SAMPLE_TEACHER_CLASS_ASSIGNMENTS,
+  }
 }
 
 function buildDevSampleSnapshot(): GeneratedSampleSnapshot {
@@ -366,8 +419,8 @@ export async function resetSampleData(supabase: AppSupabaseClient) {
   ])
   assertSupabaseOk(sampleClassesRes, 'List sample classes')
   assertSupabaseOk(sampleSubjectsRes, 'List sample subjects')
-  const sampleClassIds = (sampleClassesRes.data ?? []).map((row: any) => row.id)
-  const sampleSubjectIds = (sampleSubjectsRes.data ?? []).map((row: any) => row.id)
+  const sampleClassIds = ((sampleClassesRes.data ?? []) as Array<Record<string, unknown>>).map((row) => String(row.id ?? '')).filter(Boolean)
+  const sampleSubjectIds = ((sampleSubjectsRes.data ?? []) as Array<Record<string, unknown>>).map((row) => String(row.id ?? '')).filter(Boolean)
 
   if (sampleClassIds.length > 0) {
     const res = await supabase.from('class_subject_links').delete().in('class_id', sampleClassIds)
@@ -389,9 +442,14 @@ export async function resetSampleData(supabase: AppSupabaseClient) {
 
 export async function generateSampleData(supabase: AppSupabaseClient) {
   if (!hasPublicSupabaseConfig()) {
+    const existing = await readDevDbFile()
+    if (hasDevSampleRows(existing)) {
+      return buildPayloadFromDevDb(existing)
+    }
+
     const snapshot = buildDevSampleSnapshot()
     await writeDevDbFile(snapshot.db)
-    return snapshot.payload
+    return { ...snapshot.payload, alreadyExisted: false }
   }
 
   await resetSampleData(supabase)

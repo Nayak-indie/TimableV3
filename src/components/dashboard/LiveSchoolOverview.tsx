@@ -26,6 +26,22 @@ const defaultSummary: Summary = {
   events: 0,
 }
 
+function parseSummary(value: unknown): Summary | null {
+  if (!value || typeof value !== 'object') return null
+  const v = value as Record<string, unknown>
+  if (v.ok !== true) return null
+  if (typeof v.classes !== 'number' || typeof v.teachers !== 'number' || typeof v.subjects !== 'number' || typeof v.periodSlots !== 'number') return null
+  return {
+    activeTerm: typeof v.activeTerm === 'string' ? v.activeTerm : 'Not set',
+    classes: v.classes,
+    teachers: v.teachers,
+    subjects: v.subjects,
+    periodSlots: v.periodSlots,
+    timetableEntries: typeof v.timetableEntries === 'number' ? v.timetableEntries : 0,
+    events: typeof v.events === 'number' ? v.events : 0,
+  }
+}
+
 export default function LiveSchoolOverview({ compact = false }: { compact?: boolean }) {
   const [summary, setSummary] = useState<Summary>(defaultSummary)
   const [ready, setReady] = useState(false)
@@ -34,8 +50,9 @@ export default function LiveSchoolOverview({ compact = false }: { compact?: bool
     try {
       const response = await fetch('/api/data/summary', { cache: 'no-store' })
       if (response.ok) {
-        const payload = (await response.json()) as any
-        if (payload?.ok) setSummary(payload as Summary)
+        const payload = await response.json().catch(() => null)
+        const parsed = parseSummary(payload)
+        if (parsed) setSummary(parsed)
       }
     } finally {
       setReady(true)

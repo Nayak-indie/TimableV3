@@ -1,33 +1,10 @@
 @import "tailwindcss";
+@import "./themes/dusk-blue.css";
+@import "./themes/dark-night.css";
+@import "./themes/starry-night.css";
+@import "./themes/glow-sun.css";
 
-:root {
-  color-scheme: light;
-  --accent: #3b82f6;
-  --accent-hover: #2563eb;
-  --accent-soft: rgba(59, 130, 246, 0.14);
-  --bg-primary: #eef4ff;
-  --bg-secondary: #d5e0f4;
-  --surface-primary: rgba(255, 255, 255, 0.84);
-  --surface-secondary: rgba(245, 250, 255, 0.96);
-  --text-primary: #16324f;
-  --text-secondary: #4b6786;
-  --border-color: rgba(79, 126, 200, 0.18);
-  --button-text: #08ff98;
-  --shadow-primary: 0 18px 50px rgba(59, 130, 246, 0.12);
-  --grid-line: rgba(59, 130, 246, 0.07);
-}
-
-:root[data-theme='dark-night'] {
-  color-scheme: dark;
-}
-
-:root[data-theme='starry-night'] {
-  color-scheme: dark;
-}
-
-:root[data-theme='glow-sun'] {
-  color-scheme: light;
-}
+/* Theme tokens live in per-theme CSS files under src/app/themes/*.css */
 
 @layer base {
   * {
@@ -218,4 +195,3 @@ button * ,
     display: none !important;
   }
 }
-

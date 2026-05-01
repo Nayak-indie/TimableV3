@@ -1,10 +1,10 @@
-export interface QueryResult<T = any> {
+export interface QueryResult<T = unknown> {
   data: T | null
   error: null | Error
   count: number | null
 }
 
-export interface AppQueryBuilder<TData = any> extends PromiseLike<QueryResult<TData>> {
+export interface AppQueryBuilder<TData = unknown> extends PromiseLike<QueryResult<TData>> {
   select(columns?: string, options?: { count?: 'exact' | 'planned' | 'estimated'; head?: boolean }): AppQueryBuilder
   insert(values: Record<string, unknown> | Record<string, unknown>[]): AppQueryBuilder
   update(values: Record<string, unknown>): AppQueryBuilder

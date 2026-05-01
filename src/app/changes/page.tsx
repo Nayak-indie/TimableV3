@@ -5,6 +5,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
+import type { Event, TimetableEntry } from '@/types'
 
 export default async function ChangesPage() {
   const supabase = createServerSupabaseClient()
@@ -14,6 +15,9 @@ export default async function ChangesPage() {
     supabase.from('timetable_entries').select('*').eq('is_override', true).order('created_at', { ascending: false }).limit(8),
   ])
 
+  const events = (eventsResult.data ?? []) as Event[]
+  const overrides = (overridesResult.data ?? []) as TimetableEntry[]
+
   return (
     <div className="p-4 space-y-4">
       <div className="grid grid-cols-2 gap-2 no-print">
@@ -22,10 +26,10 @@ export default async function ChangesPage() {
       </div>
       <Card className="space-y-2">
         <p className="text-sm font-semibold text-gray-800">Upcoming events</p>
-        {(eventsResult.data ?? []).length === 0 ? (
+        {events.length === 0 ? (
           <p className="text-xs text-gray-500">No upcoming events.</p>
         ) : (
-          (eventsResult.data ?? []).map((event: any) => (
+          events.map((event) => (
             <div key={event.id} className="flex items-center justify-between">
               <p className="text-sm font-medium text-gray-700">{event.name}</p>
               <Badge label={event.event_type} />
@@ -35,10 +39,10 @@ export default async function ChangesPage() {
       </Card>
       <Card className="space-y-2">
         <p className="text-sm font-semibold text-gray-800">Recent overrides</p>
-        {(overridesResult.data ?? []).length === 0 ? (
+        {overrides.length === 0 ? (
           <p className="text-xs text-gray-500">No overrides applied yet.</p>
         ) : (
-          (overridesResult.data ?? []).map((override: any) => (
+          overrides.map((override) => (
             <p key={override.id} className="text-sm text-gray-600">
               {override.day} period {override.period_number} | class {override.class_id}
             </p>
