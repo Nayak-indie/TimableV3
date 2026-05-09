@@ -1,7 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
+import { useReactToPrint } from 'react-to-print'
+import { Download, FileText, Printer, Users } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import { supabase } from '@/lib/supabase/client'
@@ -13,46 +15,64 @@ type ViewMode = 'class' | 'all' | 'teacher'
 
 export default function ExportPage() {
   const params = useParams<{ id: string }>()
+  const printRef = useRef<HTMLDivElement>(null)
+  
   const [entries, setEntries] = useState<TimetableEntry[]>([])
   const [slots, setSlots] = useState<PeriodSlot[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [classes, setClasses] = useState<Class[]>([])
   const [term, setTerm] = useState<Term | null>(null)
+  
   const [viewMode, setViewMode] = useState<ViewMode>('class')
   const [activeClassId, setActiveClassId] = useState('')
   const [activeTeacherId, setActiveTeacherId] = useState('')
+  const [loading, setLoading] = useState(true)
 
   const loadExportData = async () => {
-    const [entriesRes, slotsRes, teachersRes, subjectsRes, classesRes, termRes] = await Promise.all([
-      supabase.from('timetable_entries').select('*').eq('term_id', params.id),
-      supabase.from('period_slots').select('*').order('number'),
-      supabase.from('teachers').select('*'),
-      supabase.from('subjects').select('*'),
-      supabase.from('classes').select('*').order('name'),
-      supabase.from('terms').select('*').eq('id', params.id).single(),
-    ])
-    setEntries(entriesRes.data ?? [])
-    setSlots(slotsRes.data ?? [])
-    setTeachers(teachersRes.data ?? [])
-    setSubjects(subjectsRes.data ?? [])
-    const classData = classesRes.data ?? []
-    const teacherData = teachersRes.data ?? []
-    setClasses(classData)
-    setTerm(termRes.data ?? null)
-    if (classData.length > 0) setActiveClassId((current) => current || classData[0].id)
-    if (teacherData.length > 0) setActiveTeacherId((current) => current || teacherData[0].id)
+    setLoading(true)
+    try {
+      const [entriesRes, slotsRes, teachersRes, subjectsRes, classesRes, termRes] = await Promise.all([
+        supabase.from('timetable_entries').select('*').eq('term_id', params.id),
+        supabase.from('period_slots').select('*').order('number'),
+        supabase.from('teachers').select('*').order('name'),
+        supabase.from('subjects').select('*').order('name'),
+        supabase.from('classes').select('*').order('name'),
+        supabase.from('terms').select('*').eq('id', params.id).single(),
+      ])
+
+      const entryData = entriesRes.data ?? []
+      const slotData = slotsRes.data ?? []
+      const teacherData = teachersRes.data ?? []
+      const subjectData = subjectsRes.data ?? []
+      const classData = classesRes.data ?? []
+      const termData = termRes.data ?? null
+
+      setEntries(entryData)
+      setSlots(slotData)
+      setTeachers(teacherData)
+      setSubjects(subjectData)
+      setClasses(classData)
+      setTerm(termData)
+
+      if (classData.length > 0 && !activeClassId) setActiveClassId(classData[0].id)
+      if (teacherData.length > 0 && !activeTeacherId) setActiveTeacherId(teacherData[0].id)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useDevDataSync(loadExportData, [params.id])
+
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `Timetable_${term?.name ?? 'Export'}`,
+  })
 
   const lessonSlots = useMemo(() => slots.filter((slot) => slot.slot_type === 'lesson'), [slots])
   const classMap = useMemo(() => new Map(classes.map((item) => [item.id, item])), [classes])
   const teacherMap = useMemo(() => new Map(teachers.map((item) => [item.id, item])), [teachers])
   const subjectMap = useMemo(() => new Map(subjects.map((item) => [item.id, item])), [subjects])
-
-  const activeClass = classMap.get(activeClassId) ?? null
-  const activeTeacher = teacherMap.get(activeTeacherId) ?? null
 
   const filteredEntries = useMemo(() => {
     if (viewMode === 'teacher') {
@@ -74,33 +94,37 @@ export default function ExportPage() {
 
     return (
       <section
-        className="space-y-3 rounded-[24px] border border-[var(--border-color)] bg-[var(--surface-primary)] p-4 shadow-[var(--shadow-primary)]"
+        key={scope.title}
+        className="mb-8 space-y-4 rounded-[28px] border border-[var(--border-color)] bg-white p-6 shadow-sm print:m-0 print:border-none print:shadow-none"
         style={{ breakAfter: 'page' }}
       >
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between border-b border-gray-100 pb-4">
           <div>
-            <p className="text-base font-semibold text-[var(--text-primary)]">{scope.title}</p>
-            <p className="text-xs text-[var(--text-secondary)]">{scope.subtitle}</p>
+            <h2 className="text-xl font-bold text-gray-900">{scope.title}</h2>
+            <p className="text-sm text-gray-500 font-medium">{scope.subtitle}</p>
           </div>
-          <p className="text-xs font-semibold text-[var(--accent)]">{scope.entriesForView.length} periods</p>
+          <div className="text-right">
+            <p className="text-xs font-bold uppercase tracking-wider text-indigo-600">Timable Export</p>
+            <p className="text-[10px] text-gray-400">{new Date().toLocaleDateString()}</p>
+          </div>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-[var(--border-color)]">
-          <table className="w-full border-collapse text-xs">
-            <thead className="bg-[var(--surface-secondary)]">
+        <div className="overflow-hidden rounded-2xl border border-gray-200">
+          <table className="w-full border-collapse text-sm">
+            <thead className="bg-gray-50">
               <tr>
-                <th className="border-b border-[var(--border-color)] p-2 text-left">Period</th>
+                <th className="border-b border-gray-200 p-3 text-left font-bold text-gray-700 w-24">Period</th>
                 {DAYS.map((day) => (
-                  <th key={day} className="border-b border-[var(--border-color)] p-2 text-left">{day}</th>
+                  <th key={day} className="border-b border-gray-200 p-3 text-left font-bold text-gray-700">{day}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {lessonSlots.map((slot) => (
-                <tr key={slot.id} className="align-top">
-                  <td className="border-b border-[var(--border-color)] p-2">
-                    <p className="font-semibold text-[var(--text-primary)]">P{slot.number}</p>
-                    <p className="text-[10px] text-[var(--text-secondary)]">{slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}</p>
+                <tr key={slot.id} className="group">
+                  <td className="border-b border-gray-100 p-3 bg-gray-50/50">
+                    <p className="font-bold text-gray-900">P{slot.number}</p>
+                    <p className="text-[10px] text-gray-500 font-medium">{slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}</p>
                   </td>
                   {DAYS.map((day) => {
                     const entry = entryLookup.get(`${day}-${slot.number}`)
@@ -111,20 +135,24 @@ export default function ExportPage() {
                     return (
                       <td
                         key={day}
-                        className="border-b border-[var(--border-color)] p-2"
-                        style={{ backgroundColor: subject ? `${subject.color_label}14` : 'var(--surface-secondary)' }}
+                        className="border-b border-gray-100 p-3 transition-colors group-hover:bg-gray-50/30"
+                        style={{ backgroundColor: subject ? `${subject.color_label}08` : undefined }}
                       >
                         {entry && subject ? (
-                          <>
-                            <p className="font-semibold" style={{ color: subject.color_label }}>
+                          <div className="space-y-1">
+                            <p className="font-bold text-sm leading-tight" style={{ color: subject.color_label }}>
                               {subject.name}
                             </p>
-                            <p className="text-[10px] text-[var(--text-secondary)]">
-                              {scope.variant === 'teacher' ? classItem?.name ?? '' : teacher?.name ?? ''}
-                            </p>
-                          </>
+                            <div className="flex items-center gap-1 text-[10px] text-gray-500 font-medium">
+                              {scope.variant === 'teacher' ? (
+                                <><FileText size={10} /> {classItem?.name ?? ''}</>
+                              ) : (
+                                <><Users size={10} /> {teacher?.name ?? ''}</>
+                              )}
+                            </div>
+                          </div>
                         ) : (
-                          <p className="text-[10px] font-medium text-[var(--text-secondary)]">Free period</p>
+                          <span className="text-[10px] font-medium text-gray-300 italic">Free</span>
                         )}
                       </td>
                     )
@@ -139,105 +167,135 @@ export default function ExportPage() {
   }
 
   return (
-    <div className="p-4 space-y-4 print:p-0">
-      <style>{`
-        @media print {
-          nav, .no-print { display: none !important; }
-          body { background: white !important; }
-        }
-      `}</style>
-
-      <Card className="no-print space-y-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-lg font-semibold text-[var(--text-primary)]">Timetable export</p>
-            <p className="text-xs text-[var(--text-secondary)]">
-              {term?.name ?? 'Term'} | choose a class, all classes, or a teacher schedule to print.
+    <div className="p-4 space-y-6 max-w-5xl mx-auto">
+      <Card className="no-print space-y-6 p-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+              <Printer className="text-indigo-600" size={24} />
+              Export Timetable
+            </h1>
+            <p className="text-sm text-gray-500 font-medium">
+              {term?.name ?? 'Term'} | Choose a schedule type and download as PDF.
             </p>
           </div>
-          <Button onClick={() => window.print()}>Print / Save PDF</Button>
+          <Button 
+            onClick={() => handlePrint()} 
+            className="h-12 px-8 shadow-indigo-200 shadow-lg"
+            disabled={loading || entries.length === 0}
+          >
+            <Download size={18} className="mr-2" />
+            Export PDF
+          </Button>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
-          <label className="space-y-1 text-xs font-semibold text-[var(--text-secondary)]">
-            Export scope
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="space-y-1.5">
+            <p className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">Scope</p>
             <select
-              className="w-full rounded-2xl border border-[var(--border-color)] bg-[var(--surface-secondary)] px-3 py-3 text-sm text-[var(--text-primary)]"
+              className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-indigo-500"
               value={viewMode}
               onChange={(e) => setViewMode(e.target.value as ViewMode)}
             >
-              <option value="class">Single class timetable</option>
-              <option value="all">All class timetables</option>
-              <option value="teacher">Teacher timetable</option>
+              <option value="class">Single Class</option>
+              <option value="all">All Classes</option>
+              <option value="teacher">Teacher Schedule</option>
             </select>
-          </label>
+          </div>
 
-          {viewMode === 'class' ? (
-            <label className="space-y-1 text-xs font-semibold text-[var(--text-secondary)]">
-              Class
+          {viewMode === 'class' && (
+            <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1">
+              <p className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">Select Class</p>
               <select
-                className="w-full rounded-2xl border border-[var(--border-color)] bg-[var(--surface-secondary)] px-3 py-3 text-sm text-[var(--text-primary)]"
+                className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-900"
                 value={activeClassId}
                 onChange={(e) => setActiveClassId(e.target.value)}
               >
                 {classes.map((item) => (
                   <option key={item.id} value={item.id}>{item.name}</option>
                 ))}
+                {classes.length === 0 && <option disabled>No classes found</option>}
               </select>
-            </label>
-          ) : null}
+            </div>
+          )}
 
-          {viewMode === 'teacher' ? (
-            <label className="space-y-1 text-xs font-semibold text-[var(--text-secondary)]">
-              Teacher
+          {viewMode === 'teacher' && (
+            <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1">
+              <p className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">Select Teacher</p>
               <select
-                className="w-full rounded-2xl border border-[var(--border-color)] bg-[var(--surface-secondary)] px-3 py-3 text-sm text-[var(--text-primary)]"
+                className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-900"
                 value={activeTeacherId}
                 onChange={(e) => setActiveTeacherId(e.target.value)}
               >
                 {teachers.map((item) => (
                   <option key={item.id} value={item.id}>{item.name}</option>
                 ))}
+                {teachers.length === 0 && <option disabled>No teachers found</option>}
               </select>
-            </label>
-          ) : null}
+            </div>
+          )}
         </div>
       </Card>
 
-      {viewMode === 'class' ? (
-        activeClass ? (
-          renderSchedule({
-            title: activeClass.name,
-            subtitle: `${term?.name ?? 'Term'} | Class schedule`,
-            entriesForView: filteredEntries,
-            variant: 'class',
-          })
-        ) : null
-      ) : null}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-20 space-y-4">
+          <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm font-medium text-gray-500">Loading export data...</p>
+        </div>
+      ) : entries.length === 0 ? (
+        <Card className="flex flex-col items-center justify-center py-16 text-center space-y-4 border-dashed border-2">
+          <div className="p-4 bg-amber-50 rounded-full text-amber-500">
+            <AlertTriangle size={32} />
+          </div>
+          <div>
+            <p className="text-lg font-bold text-gray-900">No timetable data found</p>
+            <p className="text-sm text-gray-500 max-w-sm mx-auto mt-1">
+              You haven't generated a timetable for this term yet. Please go to the Timetable tab and click "Generate".
+            </p>
+          </div>
+        </Card>
+      ) : (
+        <div ref={printRef} className="print:p-0">
+          <style>{`
+            @media print {
+              @page { size: auto; margin: 20mm; }
+              body { background: white !important; }
+              .no-print { display: none !important; }
+            }
+          `}</style>
 
-      {viewMode === 'teacher' ? (
-        activeTeacher ? (
-          renderSchedule({
-            title: activeTeacher.name,
-            subtitle: `${term?.name ?? 'Term'} | Teacher schedule`,
-            entriesForView: filteredEntries,
-            variant: 'teacher',
-          })
-        ) : null
-      ) : null}
-
-      {viewMode === 'all' ? (
-        <div className="space-y-4">
-          {classes.map((cls) =>
+          {viewMode === 'class' && activeClass && (
             renderSchedule({
-              title: cls.name,
-              subtitle: `${term?.name ?? 'Term'} | All classes export`,
-              entriesForView: entries.filter((entry) => entry.class_id === cls.id),
+              title: activeClass.name,
+              subtitle: `${term?.name ?? 'Term'} | Class Schedule`,
+              entriesForView: filteredEntries,
               variant: 'class',
             })
           )}
+
+          {viewMode === 'teacher' && activeTeacher && (
+            renderSchedule({
+              title: activeTeacher.name,
+              subtitle: `${term?.name ?? 'Term'} | Teacher Schedule`,
+              entriesForView: filteredEntries,
+              variant: 'teacher',
+            })
+          )}
+
+          {viewMode === 'all' && (
+            <div className="space-y-8">
+              {classes.map((cls) =>
+                renderSchedule({
+                  title: cls.name,
+                  subtitle: `${term?.name ?? 'Term'} | All Classes Export`,
+                  entriesForView: entries.filter((entry) => entry.class_id === cls.id),
+                  variant: 'class',
+                })
+              )}
+            </div>
+          )}
         </div>
-      ) : null}
+      )}
     </div>
   )
 }
