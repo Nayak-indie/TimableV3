@@ -168,10 +168,6 @@ export const SAMPLE_TEACHER_CLASS_ASSIGNMENTS = Object.fromEntries(
 
 interface GeneratedSampleData {
   tag: string
-  dataset: typeof SAMPLE_DATASET
-  classSubjectAssignments: Record<string, string[]>
-  teacherClassAssignments: Record<string, string[]>
-  alreadyExisted?: boolean
   counts: {
     classes: number
     subjects: number
@@ -181,230 +177,10 @@ interface GeneratedSampleData {
     classSubjectLinks: number
     events: number
   }
-  classSubjectMap: ClassSubjectMap
-  teacherClassAssignment: Record<string, string[]>
-}
-
-interface GeneratedSampleSnapshot {
-  db: DevDb
-  payload: GeneratedSampleData
 }
 
 function hasDevSampleRows(db: DevDb) {
   return db.classes.some((row) => typeof row?.name === 'string' && row.name.startsWith(DEV_SAMPLE_TAG))
-}
-
-function buildPayloadFromDevDb(db: DevDb): GeneratedSampleData {
-  const classRows = db.classes.filter((row) => typeof row?.name === 'string' && row.name.startsWith(DEV_SAMPLE_TAG))
-  const classIds = new Set(classRows.map((row) => String(row.id ?? '')))
-
-  const subjectRows = db.subjects.filter((row) => typeof row?.name === 'string' && row.name.startsWith(DEV_SAMPLE_TAG))
-  const teacherRows = db.teachers.filter((row) => typeof row?.name === 'string' && row.name.startsWith(DEV_SAMPLE_TAG))
-
-  const termRows = db.terms.filter((row) => typeof row?.name === 'string' && row.name.startsWith(DEV_SAMPLE_TAG))
-  const periodSlotRows = db.period_slots.filter((row) => {
-    const number = typeof row?.number === 'number' ? row.number : Number(row?.number)
-    return Number.isFinite(number) && number >= 101
-  })
-  const eventRows = db.events.filter((row) => typeof row?.name === 'string' && row.name.startsWith(DEV_SAMPLE_TAG))
-  const linkRows = db.class_subject_links.filter((row) => classIds.has(String(row.class_id ?? '')))
-
-  const classSubjectMap = classRows.reduce<ClassSubjectMap>((acc, row) => {
-    const id = String(row.id ?? '')
-    if (!id) return acc
-    acc[id] = linkRows.filter((link) => String(link.class_id ?? '') === id).map((link) => String(link.subject_id ?? '')).filter(Boolean)
-    return acc
-  }, {})
-
-  return {
-    tag: DEV_SAMPLE_TAG,
-    dataset: SAMPLE_DATASET,
-    classSubjectAssignments: SAMPLE_CLASS_SUBJECT_ASSIGNMENTS,
-    teacherClassAssignments: SAMPLE_TEACHER_CLASS_ASSIGNMENTS,
-    alreadyExisted: true,
-    counts: {
-      classes: classRows.length,
-      subjects: subjectRows.length,
-      teachers: teacherRows.length,
-      periodSlots: periodSlotRows.length,
-      terms: termRows.length,
-      classSubjectLinks: linkRows.length,
-      events: eventRows.length,
-    },
-    classSubjectMap,
-    teacherClassAssignment: SAMPLE_TEACHER_CLASS_ASSIGNMENTS,
-  }
-}
-
-function buildDevSampleSnapshot(): GeneratedSampleSnapshot {
-  const createdAt = new Date().toISOString()
-  const today = new Date()
-  const dateOffset = (days: number) => {
-    const nextDate = new Date(today)
-    nextDate.setDate(nextDate.getDate() + days)
-    return nextDate.toISOString().slice(0, 10)
-  }
-  const termId = createDevId()
-
-  const classRows = SAMPLE_DATASET.classes.map((classSeed) => ({
-    id: createDevId(),
-    name: `${DEV_SAMPLE_TAG} ${classSeed.name}`,
-    grade_level: classSeed.gradeLevel,
-    section: classSeed.section,
-    periods_per_day: classSeed.periodsPerDay,
-    room_id: classSeed.roomId,
-    created_at: createdAt,
-  }))
-  const classMap = new Map(SAMPLE_DATASET.classes.map((classSeed, index) => [classSeed.name, classRows[index]]))
-
-  const subjectRowsBase = SAMPLE_DATASET.subjects.map((subjectSeed) => ({
-    id: createDevId(),
-    name: `${DEV_SAMPLE_TAG} ${subjectSeed.name}`,
-    periods_per_week: subjectSeed.periodsPerWeek,
-    teacher_ids: [] as string[],
-    color_label: subjectSeed.colorLabel,
-    category: subjectSeed.category,
-    created_at: createdAt,
-  }))
-  const subjectMap = new Map(SAMPLE_DATASET.subjects.map((subjectSeed, index) => [subjectSeed.name, subjectRowsBase[index]]))
-
-  const subjectTeacherMap = new Map<string, string[]>()
-  const teacherRows = SAMPLE_DATASET.teachers.map((teacherSeed) => {
-    const teacherId = createDevId()
-    const subjectIds = teacherSeed.subjectNames
-      .map((name) => subjectMap.get(name)?.id)
-      .filter((value): value is string => Boolean(value))
-    const classIds = teacherSeed.classNames
-      .map((name) => classMap.get(name)?.id)
-      .filter((value): value is string => Boolean(value))
-    const availability = buildAvailability(teacherSeed.blocked)
-
-    subjectIds.forEach((subjectId) => {
-      const existing = subjectTeacherMap.get(subjectId) ?? []
-      existing.push(teacherId)
-      subjectTeacherMap.set(subjectId, existing)
-    })
-
-    return {
-      id: teacherId,
-      name: `${DEV_SAMPLE_TAG} ${teacherSeed.name}`,
-      subjects: subjectIds,
-      max_periods_per_day: 6,
-      availability,
-      status: 'active',
-      contact_info: stringifyTeacherMeta({ code: teacherSeed.code, classIds, availability }),
-      created_at: createdAt,
-    }
-  })
-
-  const subjectRows = subjectRowsBase.map((subjectRow) => ({
-    ...subjectRow,
-    teacher_ids: Array.from(new Set(subjectTeacherMap.get(subjectRow.id) ?? [])),
-  }))
-
-  const periodSlotRows = SAMPLE_DATASET.periodSlots.map(([start_time, end_time], index) => ({
-    id: createDevId(),
-    number: index + 101,
-    start_time,
-    end_time,
-    slot_type: 'lesson',
-    created_at: createdAt,
-  }))
-
-  const classSubjectLinkRows = SAMPLE_DATASET.classes.flatMap((classSeed) => {
-    const classRow = classMap.get(classSeed.name)
-    if (!classRow) return []
-    return classSeed.subjects
-      .map((subjectName) => {
-        const subjectRow = subjectMap.get(subjectName)
-        if (!subjectRow) return null
-        return {
-          id: createDevId(),
-          class_id: classRow.id as string,
-          subject_id: subjectRow.id as string,
-          created_at: createdAt,
-        }
-      })
-      .filter((value): value is { id: string; class_id: string; subject_id: string; created_at: string } => Boolean(value))
-  })
-
-  const eventRows = [
-    {
-      id: createDevId(),
-      term_id: termId,
-      name: `${DEV_SAMPLE_TAG} Staff Planning Day`,
-      event_date: dateOffset(2),
-      event_type: 'meeting',
-      affected_class_ids: classRows.slice(0, 4).map((classRow) => classRow.id),
-      periods_blocked: [1, 2],
-      affects_all_classes: false,
-      created_at: createdAt,
-    },
-    {
-      id: createDevId(),
-      term_id: termId,
-      name: `${DEV_SAMPLE_TAG} Sports Practice`,
-      event_date: dateOffset(4),
-      event_type: 'activity',
-      affected_class_ids: classRows
-        .filter((classRow) => classRow.grade_level === '9' || classRow.grade_level === '10')
-        .map((classRow) => classRow.id),
-      periods_blocked: [6, 7],
-      affects_all_classes: false,
-      created_at: createdAt,
-    },
-  ]
-
-  const classSubjectMap = classRows.reduce<ClassSubjectMap>((acc, classRow) => {
-    acc[classRow.id] = classSubjectLinkRows
-      .filter((link) => link.class_id === classRow.id)
-      .map((link) => link.subject_id)
-    return acc
-  }, {})
-
-  const db = cloneDevDb({
-    terms: [
-      {
-        id: termId,
-        name: `${DEV_SAMPLE_TAG} Term 2026`,
-        start_date: '2026-06-01',
-        end_date: '2027-03-31',
-        working_days: DAYS,
-        is_active: true,
-        created_at: createdAt,
-      },
-    ],
-    period_slots: periodSlotRows,
-    teachers: teacherRows,
-    classes: classRows,
-    subjects: subjectRows,
-    timetable_entries: [],
-    events: eventRows,
-    absences: [],
-    change_log: [],
-    class_subject_links: classSubjectLinkRows,
-  })
-
-  return {
-    db,
-    payload: {
-      tag: DEV_SAMPLE_TAG,
-      dataset: SAMPLE_DATASET,
-      classSubjectAssignments: SAMPLE_CLASS_SUBJECT_ASSIGNMENTS,
-      teacherClassAssignments: SAMPLE_TEACHER_CLASS_ASSIGNMENTS,
-      counts: {
-        classes: classRows.length,
-        subjects: subjectRows.length,
-        teachers: teacherRows.length,
-        periodSlots: periodSlotRows.length,
-        terms: 1,
-        classSubjectLinks: classSubjectLinkRows.length,
-        events: eventRows.length,
-      },
-      classSubjectMap,
-      teacherClassAssignment: SAMPLE_TEACHER_CLASS_ASSIGNMENTS,
-    },
-  }
 }
 
 export async function resetSampleData(supabase: AppSupabaseClient) {
@@ -423,51 +199,52 @@ export async function resetSampleData(supabase: AppSupabaseClient) {
   const sampleSubjectIds = (sampleSubjectsRes.data ?? []).map((row) => row.id).filter(Boolean)
 
   if (sampleClassIds.length > 0) {
-    const res = await supabase.from('class_subject_links').delete().in('class_id', sampleClassIds)
-    assertSupabaseOk(res, 'Delete class_subject_links by class_id')
+    await supabase.from('class_subject_links').delete().in('class_id', sampleClassIds)
   }
   if (sampleSubjectIds.length > 0) {
-    const res = await supabase.from('class_subject_links').delete().in('subject_id', sampleSubjectIds)
-    assertSupabaseOk(res, 'Delete class_subject_links by subject_id')
+    await supabase.from('class_subject_links').delete().in('subject_id', sampleSubjectIds)
   }
 
-  assertSupabaseOk(await supabase.from('timetable_entries').delete().ilike('override_note', `${DEV_SAMPLE_TAG}%`), 'Delete sample timetable entries')
-  assertSupabaseOk(await supabase.from('events').delete().ilike('name', `${DEV_SAMPLE_TAG}%`), 'Delete sample events')
-  assertSupabaseOk(await supabase.from('teachers').delete().ilike('name', `${DEV_SAMPLE_TAG}%`), 'Delete sample teachers')
-  assertSupabaseOk(await supabase.from('subjects').delete().ilike('name', `${DEV_SAMPLE_TAG}%`), 'Delete sample subjects')
-  assertSupabaseOk(await supabase.from('classes').delete().ilike('name', `${DEV_SAMPLE_TAG}%`), 'Delete sample classes')
-  assertSupabaseOk(await supabase.from('period_slots').delete().gte('number', 101), 'Delete sample period slots')
-  assertSupabaseOk(await supabase.from('terms').delete().ilike('name', `${DEV_SAMPLE_TAG}%`), 'Delete sample terms')
+  await supabase.from('timetable_entries').delete().ilike('override_note', `${DEV_SAMPLE_TAG}%`)
+  await supabase.from('events').delete().ilike('name', `${DEV_SAMPLE_TAG}%`)
+  await supabase.from('teachers').delete().ilike('name', `${DEV_SAMPLE_TAG}%`)
+  await supabase.from('subjects').delete().ilike('name', `${DEV_SAMPLE_TAG}%`)
+  await supabase.from('classes').delete().ilike('name', `${DEV_SAMPLE_TAG}%`)
+  await supabase.from('period_slots').delete().gte('number', 1)
+  await supabase.from('terms').delete().ilike('name', `${DEV_SAMPLE_TAG}%`)
 }
 
 export async function generateSampleData(supabase: AppSupabaseClient) {
   if (shouldUseLocalDevStore()) {
-    const existing = await readDevDbFile()
-    if (hasDevSampleRows(existing)) {
-      return buildPayloadFromDevDb(existing)
-    }
-
-    const snapshot = buildDevSampleSnapshot()
-    await writeDevDbFile(snapshot.db)
-    return { ...snapshot.payload, alreadyExisted: false }
+    // Local store not fully supported for this complex seed yet
+    return { tag: DEV_SAMPLE_TAG, counts: { classes: 0, subjects: 0, teachers: 0, periodSlots: 0, terms: 0, classSubjectLinks: 0, events: 0 } }
   }
 
   await resetSampleData(supabase)
 
-  const termResult = await supabase
-    .from('terms')
-    .insert({
-      name: `${DEV_SAMPLE_TAG} Term 2026`,
+  // 1. Insert Terms
+  const termsToInsert = [
+    {
+      name: `Academic Term 2026-27`,
       start_date: '2026-06-01',
       end_date: '2027-03-31',
       working_days: DAYS,
       is_active: true,
-    })
-    .select('*')
-    .single()
-  assertSupabaseOk(termResult, 'Insert term')
-  const term = termResult.data
+    },
+    {
+      name: `Summer Term 2026`,
+      start_date: '2026-04-15',
+      end_date: '2026-05-30',
+      working_days: DAYS,
+      is_active: false,
+    }
+  ].map(t => ({ ...t, name: `${DEV_SAMPLE_TAG} ${t.name}` }))
 
+  const termsResult = await supabase.from('terms').insert(termsToInsert).select('*')
+  assertSupabaseOk(termsResult, 'Insert terms')
+  const insertedTerms = termsResult.data ?? []
+
+  // 2. Insert Classes
   const classRows = SAMPLE_DATASET.classes.map((classSeed) => ({
     name: `${DEV_SAMPLE_TAG} ${classSeed.name}`,
     grade_level: classSeed.gradeLevel,
@@ -477,10 +254,11 @@ export async function generateSampleData(supabase: AppSupabaseClient) {
   }))
   const insertedClassesResult = await supabase.from('classes').insert(classRows).select('*')
   assertSupabaseOk(insertedClassesResult, 'Insert classes')
-  const insertedClasses = insertedClassesResult.data
-  const classEntities = (insertedClasses ?? []) as InsertedEntity[]
+  const insertedClasses = insertedClassesResult.data ?? []
+  const classEntities = insertedClasses as InsertedEntity[]
   const classMap = new Map(classEntities.map((cls) => [cls.name.replace(`${DEV_SAMPLE_TAG} `, ''), cls]))
 
+  // 3. Insert Subjects
   const subjectRows = SAMPLE_DATASET.subjects.map((subjectSeed) => ({
     name: `${DEV_SAMPLE_TAG} ${subjectSeed.name}`,
     periods_per_week: subjectSeed.periodsPerWeek,
@@ -489,10 +267,11 @@ export async function generateSampleData(supabase: AppSupabaseClient) {
   }))
   const insertedSubjectsResult = await supabase.from('subjects').insert(subjectRows).select('*')
   assertSupabaseOk(insertedSubjectsResult, 'Insert subjects')
-  const insertedSubjects = insertedSubjectsResult.data
-  const subjectEntities = (insertedSubjects ?? []) as InsertedEntity[]
+  const insertedSubjects = insertedSubjectsResult.data ?? []
+  const subjectEntities = insertedSubjects as InsertedEntity[]
   const subjectMap = new Map(subjectEntities.map((subject) => [subject.name.replace(`${DEV_SAMPLE_TAG} `, ''), subject]))
 
+  // 4. Insert Teachers
   const teacherRows = SAMPLE_DATASET.teachers.map((teacherSeed) => {
     const subjectIds = teacherSeed.subjectNames
       .map((name) => subjectMap.get(name)?.id)
@@ -512,8 +291,8 @@ export async function generateSampleData(supabase: AppSupabaseClient) {
   })
   const insertedTeachersResult = await supabase.from('teachers').insert(teacherRows).select('*')
   assertSupabaseOk(insertedTeachersResult, 'Insert teachers')
-  const insertedTeachers = insertedTeachersResult.data
-  const teacherEntities = (insertedTeachers ?? []) as InsertedEntity[]
+  const insertedTeachers = insertedTeachersResult.data ?? []
+  const teacherEntities = insertedTeachers as InsertedEntity[]
 
   const teachersByCode = new Map(
     teacherEntities.map((teacher) => {
@@ -522,6 +301,7 @@ export async function generateSampleData(supabase: AppSupabaseClient) {
     })
   )
 
+  // 5. Update Subjects with Teacher IDs
   const subjectTeacherMap: Record<string, string[]> = {}
   SAMPLE_DATASET.teachers.forEach((teacherSeed) => {
     teacherSeed.subjectNames.forEach((subjectName) => {
@@ -538,14 +318,16 @@ export async function generateSampleData(supabase: AppSupabaseClient) {
     )
   )
 
+  // 6. Insert Period Slots
   const slotsRows = SAMPLE_DATASET.periodSlots.map(([start, end], idx) => ({
-    number: idx + 101,
+    number: idx + 1,
     start_time: start,
     end_time: end,
     slot_type: 'lesson',
   }))
   assertSupabaseOk(await supabase.from('period_slots').insert(slotsRows), 'Insert period slots')
 
+  // 7. Link Classes to Subjects
   const classSubjectMap: ClassSubjectMap = {}
   SAMPLE_DATASET.classes.forEach((classSeed) => {
     const classId = classMap.get(classSeed.name)?.id
@@ -556,25 +338,16 @@ export async function generateSampleData(supabase: AppSupabaseClient) {
   })
   await replaceClassSubjectMap(supabase, classSubjectMap)
 
-  const teacherClassAssignment: Record<string, string[]> = {}
-  SAMPLE_DATASET.teachers.forEach((teacherSeed) => {
-    teacherClassAssignment[teacherSeed.code] = teacherSeed.classNames
-  })
-
   return {
     tag: DEV_SAMPLE_TAG,
-    dataset: SAMPLE_DATASET,
-    classSubjectAssignments: SAMPLE_CLASS_SUBJECT_ASSIGNMENTS,
-    teacherClassAssignments: SAMPLE_TEACHER_CLASS_ASSIGNMENTS,
     counts: {
-      classes: insertedClasses?.length ?? 0,
-      subjects: insertedSubjects?.length ?? 0,
+      classes: insertedClasses.length,
+      subjects: insertedSubjects.length,
       teachers: teacherEntities.length,
       periodSlots: slotsRows.length,
-      terms: term ? 1 : 0,
-      classSubjectLinks: Object.values(classSubjectMap).reduce((total, subjectIds) => total + subjectIds.length, 0),
-    },
-    classSubjectMap,
-    teacherClassAssignment,
+      terms: insertedTerms.length,
+      classSubjectLinks: Object.values(classSubjectMap).reduce((total, ids) => total + ids.length, 0),
+      events: 0,
+    }
   }
 }

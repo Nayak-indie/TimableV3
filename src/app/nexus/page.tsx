@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { CalendarDays, Edit2, Filter, Network, RefreshCcw, Search, Settings, Trash2 } from 'lucide-react'
+import { CalendarDays, Edit2, Filter, Network, RefreshCcw, Search, Settings, Trash2, AlertTriangle } from 'lucide-react'
 import MoreOptions from '@/components/ui/MoreOptions'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
@@ -11,6 +11,18 @@ import type { Class, DayOfWeek, PeriodSlot, Subject, Teacher, TimetableEntry, Te
 import { useDevDataSync } from '@/lib/dev/use-dev-data-sync'
 import { getCurrentDay } from '@/lib/utils'
 import { readAppMemory, updateSessionState } from '@/lib/app-memory'
+import { PrerequisiteEngine } from '@/lib/scheduling/prerequisites'
+import { PredictiveAnalyzer } from '@/lib/intelligence/predictive-analysis'
+import { HistoryEngine } from '@/lib/intelligence/history/execution-history'
+import { PredictionDrift } from '@/lib/intelligence/calibration/prediction-drift'
+import { ForecastCalibration } from '@/lib/intelligence/calibration/forecast-calibration'
+import { ContextEngine } from '@/lib/intelligence/core/context-engine'
+import { InstitutionalReporter } from '@/lib/reporting/governance-summary'
+
+
+
+
+
 
 const DAYS: DayOfWeek[] = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
 
@@ -35,6 +47,14 @@ function bezierPath(from: { x: number; y: number }, to: { x: number; y: number }
 
 type PeriodFilter = 'all' | number
 
+interface ConflictInfo {
+  id: string
+  type: 'overload' | 'clash' | 'unmet'
+  severity: 'low' | 'medium' | 'high'
+  message: string
+}
+
+
 export default function NexusPage() {
   const memory = readAppMemory()
   const [terms, setTerms] = useState<Term[]>([])
@@ -42,6 +62,13 @@ export default function NexusPage() {
   const [day, setDay] = useState<DayOfWeek>(memory.session.nexus?.day ?? getCurrentDay())
   const [period, setPeriod] = useState<PeriodFilter>(memory.session.nexus?.period ?? 'all')
   const [query, setQuery] = useState(memory.session.nexus?.query ?? '')
+
+  // Curriculum Intelligence: Demo Prerequisites
+  const prereqEngine = useMemo(() => new PrerequisiteEngine({
+    'physics_id': ['math_id'], // Physics depends on Math
+    'organic_chem_id': ['chem_bonding_id'],
+  }), [])
+
 
   const [classes, setClasses] = useState<Class[]>([])
   const [teachers, setTeachers] = useState<Teacher[]>([])
@@ -149,6 +176,7 @@ export default function NexusPage() {
     const classLoad = new Map<string, number>()
     const subjectLoad = new Map<string, number>()
     const teacherLoad = new Map<string, number>()
+    const conflicts: ConflictInfo[] = []
 
     for (const entry of filteredEntries) {
       if (!entry.subject_id || !entry.teacher_id) continue
@@ -161,8 +189,81 @@ export default function NexusPage() {
       teacherLoad.set(entry.teacher_id, (teacherLoad.get(entry.teacher_id) ?? 0) + 1)
     }
 
-    return { classSubject, subjectTeacher, classLoad, subjectLoad, teacherLoad }
-  }, [filteredEntries])
+    // Dependency Intelligence: Detect Semantic (Prerequisite) Violations
+    const semanticViolations: Array<{ classId: string; subjectId: string; prereqId: string }> = []
+    for (const entry of filteredEntries) {
+      if (!entry.subject_id) continue
+      
+      // We check all entries in the term to see if prerequisites are met
+      const { isValid, violatedSubject } = prereqEngine.validateSequence(
+        entry.subject_id,
+        entry.day as DayOfWeek,
+        entry.period_number,
+        entries.map(e => ({ subjectId: e.subject_id!, day: e.day as DayOfWeek, period: e.period_number })),
+        DAYS
+      )
+
+      if (!isValid && violatedSubject) {
+        semanticViolations.push({
+          classId: entry.class_id,
+          subjectId: entry.subject_id,
+          prereqId: violatedSubject
+        })
+      }
+    }
+
+    // Dependency Intelligence: Detect Overloads
+    teachers.forEach(t => {
+      const load = teacherLoad.get(t.id) ?? 0
+      if (load > t.max_periods_per_day) {
+        conflicts.push({
+          id: t.id,
+          type: 'overload',
+          severity: 'high',
+          message: `${t.name} is assigned ${load} periods (Max: ${t.max_periods_per_day})`
+        })
+      }
+    })
+
+    return { classSubject, subjectTeacher, classLoad, subjectLoad, teacherLoad, conflicts, semanticViolations }
+  }, [filteredEntries, teachers, entries, prereqEngine])
+
+  // --- CONSOLIDATED INTELLIGENCE CORE ---
+  const intelContext = useMemo(() => {
+    const classSubjectLinks: Record<string, string[]> = {}
+    entries.forEach(e => {
+      if (!e.class_id || !e.subject_id) return
+      if (!classSubjectLinks[e.class_id]) classSubjectLinks[e.class_id] = []
+      if (!classSubjectLinks[e.class_id].includes(e.subject_id)) {
+        classSubjectLinks[e.class_id].push(e.subject_id)
+      }
+    })
+
+    const analyzer = new PredictiveAnalyzer(teachers, classes, subjects, classSubjectLinks, prereqEngine)
+    const analysis = analyzer.analyze()
+    
+    // Fetch memory/observatory signals
+    const mockHistory = [{ timestamp: '2026-05-01', success: false, bottlenecks: ['math_teacher_01', 'physics_id'], mode: 'PRECISION' }] as any
+    const drift = PredictionDrift.calculateDrift(mockHistory)
+    const calib = ForecastCalibration.calibrate(analysis.forecast.probability, drift)
+    
+    const decision = DelegationPolicy.decide(analysis.forecast, analysis.resourcePressure, analysis.dependencyRisk)
+
+    return ContextEngine.synthesize(
+      analysis.forecast,
+      analysis.resourcePressure,
+      analysis.dependencyRisk,
+      { calibratedProbability: calib.calibratedProbability, confidence: calib.confidence, drift },
+      { mode: decision.mode, reasoning: decision.reasoning, strategy: decision.strategy }
+    )
+  }, [teachers, classes, subjects, entries, prereqEngine])
+
+  const report = useMemo(() => InstitutionalReporter.generateGovernanceSummary(intelContext), [intelContext])
+
+
+
+
+
 
   const layout = useMemo(() => {
     const rowHeight = 44
@@ -208,262 +309,148 @@ export default function NexusPage() {
   }, [aggregates])
 
   return (
-    <div className="p-4 space-y-3">
-      <Card className="space-y-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-2">
-            <div className="mt-0.5 text-[var(--accent)]"><Network size={18} /></div>
-            <div>
-              <p className="text-sm font-semibold text-[var(--text-primary)]">Nexus</p>
-              <p className="text-xs text-[var(--text-secondary)]">Class → subject → teacher connections for a day.</p>
+    <div className="flex h-screen overflow-hidden bg-[var(--surface-primary)]">
+      {/* Main Observatory Canvas */}
+      <div className="flex-1 overflow-auto p-4 space-y-3">
+        <Card className="space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-2">
+              <div className="mt-0.5 text-[var(--accent)]"><Network size={18} /></div>
+              <div>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">Nexus Intelligence Context</p>
+                <p className="text-xs text-[var(--text-secondary)]">Unified observatory for {cleanLabel(term?.name || 'current term')}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--surface-elevated)] border border-[var(--border-color)]">
+                <span className="text-[10px] font-bold text-[var(--text-secondary)] tracking-widest">FEASIBILITY</span>
+                <span className={`text-[10px] font-black ${intelContext.calibration.calibratedProbability > 0.7 ? 'text-green-500' : 'text-orange-500'}`}>
+                  {Math.round(intelContext.calibration.calibratedProbability * 100)}%
+                </span>
+              </div>
+              <Button variant="ghost" onClick={load}><RefreshCcw size={14} />Sync Context</Button>
             </div>
           </div>
-          <Button variant="ghost" onClick={load}><RefreshCcw size={14} />Refresh</Button>
-        </div>
-
-        <div className="grid gap-2">
-          <label className="text-xs font-semibold text-[var(--text-secondary)]">
-            Term
-            <select
-              className="mt-1 w-full rounded-2xl border border-[var(--border-color)] bg-[var(--surface-secondary)] px-3 py-3 text-sm text-[var(--text-primary)]"
-              value={termId}
-              onChange={async (e) => {
-                const nextId = e.target.value
-                setTermId(nextId)
-                persist({ termId: nextId })
-                if (nextId) {
-                  const entriesRes = await supabase.from('timetable_entries').select('*').eq('term_id', nextId)
-                  setEntries(entriesRes.data ?? [])
-                } else {
-                  setEntries([])
-                }
-              }}
-            >
-              {terms.map((value) => (
-                <option key={value.id} value={value.id}>{value.name}</option>
-              ))}
-            </select>
-          </label>
-
-          <div className="flex items-center gap-1 rounded-2xl border border-[var(--border-color)] bg-[var(--surface-secondary)] p-1 overflow-x-auto">
-            {DAYS.map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => {
-                  setDay(value)
-                  persist({ day: value })
-                }}
-                className={day === value ? 'px-3 py-2 rounded-xl text-xs font-semibold bg-[var(--accent)] text-[var(--on-accent)]' : 'px-3 py-2 rounded-xl text-xs font-semibold text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)]'}
-              >
-                {value}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <label className="text-xs font-semibold text-[var(--text-secondary)]">
-              Period
-              <select
-                className="mt-1 w-full rounded-2xl border border-[var(--border-color)] bg-[var(--surface-secondary)] px-3 py-3 text-sm text-[var(--text-primary)]"
-                value={String(period)}
-                onChange={(e) => {
-                  const value = e.target.value
-                  const next = value === 'all' ? 'all' : Number(value)
-                  setPeriod(next)
-                  persist({ period: next })
-                }}
-              >
-                <option value="all">All day</option>
-                {slots.map((slot) => (
-                  <option key={slot.id} value={slot.number}>P{slot.number}</option>
+          
+          <div className="grid grid-cols-5 gap-2">
+            <div className="col-span-2">
+              <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase">Day Selection</label>
+              <div className="mt-1 flex items-center gap-1 rounded-xl border border-[var(--border-color)] bg-[var(--surface-secondary)] p-1">
+                {DAYS.map((value) => (
+                  <button key={value} onClick={() => { setDay(value); persist({ day: value }) }}
+                    className={day === value ? 'flex-1 py-1.5 rounded-lg text-[10px] font-bold bg-[var(--accent)] text-[var(--on-accent)]' : 'flex-1 py-1.5 rounded-lg text-[10px] font-bold text-[var(--text-secondary)] hover:bg-[var(--surface-elevated)]'}>
+                    {value}
+                  </button>
                 ))}
+              </div>
+            </div>
+            <div className="col-span-1">
+              <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase">Period</label>
+              <select className="mt-1 w-full rounded-xl border border-[var(--border-color)] bg-[var(--surface-secondary)] px-2 py-1.5 text-xs"
+                value={String(period)} onChange={(e) => { const v = e.target.value === 'all' ? 'all' : Number(e.target.value); setPeriod(v); persist({ period: v }) }}>
+                <option value="all">All Day</option>
+                {slots.map((s) => <option key={s.id} value={s.number}>P{s.number}</option>)}
               </select>
-            </label>
-
-            <div className="pt-5">
-              <Input
-                label=""
-                placeholder="Search class/teacher/subject"
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value)
-                  persist({ query: e.target.value })
-                }}
-                icon={<Search size={16} />}
-              />
+            </div>
+            <div className="col-span-2">
+              <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase">Global Trace</label>
+              <div className="mt-1 px-3 py-1.5 rounded-xl bg-[var(--surface-elevated)] border border-[var(--border-color)] text-[10px] text-[var(--text-secondary)] italic truncate">
+                {intelContext.routing.mode}: {intelContext.routing.reasoning}
+              </div>
             </div>
           </div>
+        </Card>
 
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--border-color)] bg-[var(--surface-secondary)] px-3 py-2">
-            <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-              <Filter size={14} />
-              <span>{term ? cleanLabel(term.name) : 'No term selected'}</span>
-            </div>
-            <p className="text-xs font-semibold text-[var(--accent)]">{filteredEntries.length} links</p>
+        <div className="rounded-[32px] border border-[var(--border-color)] bg-[var(--surface-primary)] shadow-2xl overflow-hidden relative">
+          <div className="overflow-auto">
+            <svg width={layout.width} height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`} className="block">
+              <defs>
+                <linearGradient id="edgeFade" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.1" />
+                  <stop offset="50%" stopColor="var(--accent)" stopOpacity="0.4" />
+                  <stop offset="100%" stopColor="var(--accent)" stopOpacity="0.1" />
+                </linearGradient>
+              </defs>
+              
+              {/* Contextual Edges */}
+              {edges.classSubjectEdges.map((edge) => {
+                const from = layout.pos.classes.get(edge.classId);
+                const to = layout.pos.subjects.get(edge.subjectId);
+                if (!from || !to) return null;
+                return (
+                  <path key={`cs-${edge.classId}`} d={bezierPath({ x: from.x + layout.nodeWidth, y: from.y + layout.nodeHeight/2 }, { x: to.x, y: to.y + layout.nodeHeight/2 })}
+                    fill="none" stroke="url(#edgeFade)" strokeWidth={strokeForCount(edge.count)} strokeOpacity={0.3} />
+                )
+              })}
+
+              {/* Intelligence Nodes */}
+              {layout.sortedTeachers.map((t) => {
+                const pos = layout.pos.teachers.get(t.id);
+                if (!pos) return null;
+                const pressure = intelContext.pressure.find(p => p.id === t.id);
+                const isCritical = pressure && pressure.score > 0.85;
+
+                return (
+                  <g key={t.id} className="group/node">
+                    {isCritical && <rect x={pos.x - 4} y={pos.y - 4} width={layout.nodeWidth + 8} height={layout.nodeHeight + 8} rx="16" fill="rgba(239, 68, 68, 0.1)" className="animate-pulse" />}
+                    <rect x={pos.x} y={pos.y} width={layout.nodeWidth} height={layout.nodeHeight} rx="12" fill="var(--surface-elevated)" stroke={isCritical ? '#ef4444' : 'var(--border-color)'} strokeWidth={isCritical ? 2 : 1} />
+                    <text x={pos.x + 12} y={pos.y + 19} fill={isCritical ? '#ef4444' : 'var(--text-primary)'} fontSize="11" fontWeight="700">{cleanLabel(t.name)}</text>
+                  </g>
+                )
+              })}
+              
+              {/* Header Labels */}
+              <text x={40} y={30} fill="var(--text-secondary)" fontSize="10" fontWeight="900" className="uppercase tracking-[0.2em]">Classes</text>
+              <text x={365} y={30} fill="var(--text-secondary)" fontSize="10" fontWeight="900" className="uppercase tracking-[0.2em]">Curriculum</text>
+              <text x={690} y={30} fill="var(--text-secondary)" fontSize="10" fontWeight="900" className="uppercase tracking-[0.2em]">Resources</text>
+            </svg>
           </div>
         </div>
-      </Card>
+      </div>
 
-      <div className="rounded-[24px] border border-[var(--border-color)] bg-[var(--surface-primary)] shadow-[var(--shadow-primary)] overflow-hidden">
-        <div className="overflow-auto">
-          <svg
-            width={layout.width}
-            height={layout.height}
-            viewBox={`0 0 ${layout.width} ${layout.height}`}
-            className="block"
-          >
-            <defs>
-              <linearGradient id="edgeFade" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.22" />
-                <stop offset="40%" stopColor="var(--accent)" stopOpacity="0.55" />
-                <stop offset="100%" stopColor="var(--accent)" stopOpacity="0.22" />
-              </linearGradient>
-              <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%">
-                <feGaussianBlur stdDeviation="3" result="blur" />
-                <feMerge>
-                  <feMergeNode in="blur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
-            </defs>
+      {/* Governance & Strategic Reporting Sidebar */}
+      <div className="w-80 border-l border-[var(--border-color)] bg-[var(--surface-secondary)] p-5 overflow-auto space-y-6">
+        <div>
+          <h3 className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-[0.2em] mb-4">Institutional Risk</h3>
+          <div className="relative h-2 w-full bg-[var(--surface-elevated)] rounded-full overflow-hidden">
+            <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-green-500 to-red-500 transition-all duration-1000" style={{ width: `${report.institutionalRiskScore * 100}%` }} />
+          </div>
+          <p className="mt-2 text-2xl font-black text-[var(--text-primary)]">{Math.round(report.institutionalRiskScore * 100)}%</p>
+          <p className="text-[10px] text-[var(--text-secondary)]">Longitudinal stability metric</p>
+        </div>
 
-            <rect x="0" y="0" width={layout.width} height={layout.height} fill="var(--surface-primary)" />
-            {edges.classSubjectEdges.map((edge) => {
-              const from = layout.pos.classes.get(edge.classId)
-              const to = layout.pos.subjects.get(edge.subjectId)
-              const subject = subjectMap.get(edge.subjectId)
-              if (!from || !to) return null
-              return (
-                <path
-                  key={`cs-${edge.classId}-${edge.subjectId}`}
-                  d={bezierPath(
-                    { x: from.x + layout.nodeWidth, y: from.y + layout.nodeHeight / 2 },
-                    { x: to.x, y: to.y + layout.nodeHeight / 2 }
-                  )}
-                  fill="none"
-                  stroke={subject?.color_label ?? 'url(#edgeFade)'}
-                  strokeOpacity={0.38}
-                  strokeWidth={strokeForCount(edge.count)}
-                />
-              )
-            })}
-
-            {edges.subjectTeacherEdges.map((edge) => {
-              const from = layout.pos.subjects.get(edge.subjectId)
-              const to = layout.pos.teachers.get(edge.teacherId)
-              const subject = subjectMap.get(edge.subjectId)
-              if (!from || !to) return null
-              return (
-                <path
-                  key={`st-${edge.subjectId}-${edge.teacherId}`}
-                  d={bezierPath(
-                    { x: from.x + layout.nodeWidth, y: from.y + layout.nodeHeight / 2 },
-                    { x: to.x, y: to.y + layout.nodeHeight / 2 }
-                  )}
-                  fill="none"
-                  stroke={subject?.color_label ?? 'url(#edgeFade)'}
-                  strokeOpacity={0.3}
-                  strokeWidth={strokeForCount(edge.count)}
-                />
-              )
-            })}
-
-            {([
-              { title: 'Classes', x: 40 },
-              { title: 'Subjects', x: 365 },
-              { title: 'Teachers', x: 690 },
-            ] as const).map((header) => (
-              <g key={header.title}>
-                <text x={header.x} y={34} fill="var(--text-secondary)" fontSize="12" fontWeight="700">{header.title}</text>
-              </g>
+        <div>
+          <h3 className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-[0.2em] mb-3">Chronic Bottlenecks</h3>
+          <div className="space-y-2">
+            {report.topBottlenecks.map((b, i) => (
+              <div key={i} className="px-3 py-2 rounded-xl bg-red-500/5 border border-red-500/10 text-[10px] font-bold text-red-600">
+                {b}
+              </div>
             ))}
+          </div>
+        </div>
 
-            {layout.sortedClasses.map((item) => {
-              const pos = layout.pos.classes.get(item.id)
-              if (!pos) return null
-              const load = aggregates.classLoad.get(item.id) ?? 0
-              return (
-                <g key={item.id} className="group/node">
-                  <rect x={pos.x} y={pos.y} width={layout.nodeWidth} height={layout.nodeHeight} rx="12" fill="var(--surface-elevated)" stroke="var(--border-color)" className="transition-colors group-hover/node:stroke-[var(--accent)]" />
-                  <text x={pos.x + 12} y={pos.y + 19} fill="var(--text-primary)" fontSize="12" fontWeight="650">
-                    {cleanLabel(item.name)}
-                  </text>
-                  <text x={pos.x + layout.nodeWidth - 38} y={pos.y + 19} fill="var(--text-secondary)" fontSize="11" fontWeight="700" textAnchor="end">
-                    {load}
-                  </text>
-                  <foreignObject x={pos.x + layout.nodeWidth - 32} y={pos.y + 1} width="30" height="28">
-                    <MoreOptions 
-                      align="right"
-                      options={[
-                        { label: 'Edit Class', icon: <Edit2 size={14} />, onClick: () => alert('Advanced edit coming soon') },
-                        { label: 'Rename', icon: <Settings size={14} />, onClick: () => handleAction('classes', item.id, 'rename', item.name) },
-                        { label: 'Remove', icon: <Trash2 size={14} />, variant: 'danger', onClick: () => handleAction('classes', item.id, 'remove', item.name) },
-                      ]}
-                    />
-                  </foreignObject>
-                </g>
-              )
-            })}
+        <div>
+          <h3 className="text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-[0.2em] mb-3">Strategic Insights</h3>
+          <div className="space-y-3">
+            {report.strategicInsights.map((insight, i) => (
+              <div key={i} className="flex gap-2">
+                <div className="mt-1 w-1.5 h-1.5 rounded-full bg-[var(--accent)] shrink-0" />
+                <p className="text-[10px] leading-relaxed text-[var(--text-secondary)] font-medium">{insight}</p>
+              </div>
+            ))}
+          </div>
+        </div>
 
-            {layout.sortedSubjects.map((item) => {
-              const pos = layout.pos.subjects.get(item.id)
-              if (!pos) return null
-              const load = aggregates.subjectLoad.get(item.id) ?? 0
-              return (
-                <g key={item.id} className="group/node">
-                  <rect x={pos.x} y={pos.y} width={layout.nodeWidth} height={layout.nodeHeight} rx="12" fill="var(--surface-elevated)" stroke="var(--border-color)" className="transition-colors group-hover/node:stroke-[var(--accent)]" />
-                  <rect x={pos.x + 10} y={pos.y + 10} width="10" height="10" rx="3" fill={item.color_label} filter="url(#softGlow)" />
-                  <text x={pos.x + 28} y={pos.y + 19} fill="var(--text-primary)" fontSize="12" fontWeight="650">
-                    {cleanLabel(item.name)}
-                  </text>
-                  <text x={pos.x + layout.nodeWidth - 38} y={pos.y + 19} fill="var(--text-secondary)" fontSize="11" fontWeight="700" textAnchor="end">
-                    {load}
-                  </text>
-                  <foreignObject x={pos.x + layout.nodeWidth - 32} y={pos.y + 1} width="30" height="28">
-                    <MoreOptions 
-                      align="right"
-                      options={[
-                        { label: 'Edit Subject', icon: <Edit2 size={14} />, onClick: () => alert('Advanced edit coming soon') },
-                        { label: 'Rename', icon: <Settings size={14} />, onClick: () => handleAction('subjects', item.id, 'rename', item.name) },
-                        { label: 'Remove', icon: <Trash2 size={14} />, variant: 'danger', onClick: () => handleAction('subjects', item.id, 'remove', item.name) },
-                      ]}
-                    />
-                  </foreignObject>
-                </g>
-              )
-            })}
-
-            {layout.sortedTeachers.map((item) => {
-              const pos = layout.pos.teachers.get(item.id)
-              if (!pos) return null
-              const load = aggregates.teacherLoad.get(item.id) ?? 0
-              return (
-                <g key={item.id} className="group/node">
-                  <rect x={pos.x} y={pos.y} width={layout.nodeWidth} height={layout.nodeHeight} rx="12" fill="var(--surface-elevated)" stroke="var(--border-color)" className="transition-colors group-hover/node:stroke-[var(--accent)]" />
-                  <text x={pos.x + 12} y={pos.y + 19} fill="var(--text-primary)" fontSize="12" fontWeight="650">
-                    {cleanLabel(item.name)}
-                  </text>
-                  <text x={pos.x + layout.nodeWidth - 38} y={pos.y + 19} fill="var(--text-secondary)" fontSize="11" fontWeight="700" textAnchor="end">
-                    {load}
-                  </text>
-                  <foreignObject x={pos.x + layout.nodeWidth - 32} y={pos.y + 1} width="30" height="28">
-                    <MoreOptions 
-                      align="right"
-                      options={[
-                        { label: 'Edit Teacher', icon: <Edit2 size={14} />, onClick: () => alert('Advanced edit coming soon') },
-                        { label: 'Rename', icon: <Settings size={14} />, onClick: () => handleAction('teachers', item.id, 'rename', item.name) },
-                        { label: 'Remove', icon: <Trash2 size={14} />, variant: 'danger', onClick: () => handleAction('teachers', item.id, 'remove', item.name) },
-                      ]}
-                    />
-                  </foreignObject>
-                </g>
-              )
-            })}
-          </svg>
+        <div className="pt-6 border-t border-[var(--border-color)]">
+          <div className="p-4 rounded-2xl bg-[var(--accent)] text-[var(--on-accent)] space-y-2">
+            <p className="text-[10px] font-black uppercase tracking-widest">Self-Correction</p>
+            <p className="text-xs font-medium leading-snug">The observatory has calibrated the current forecast with {Math.round(intelContext.calibration.confidence * 100)}% confidence.</p>
+          </div>
         </div>
       </div>
     </div>
   )
 }
+
 

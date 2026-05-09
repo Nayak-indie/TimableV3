@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { solveWithORTools } from '@/lib/scheduling/ortools-solver'
+import { generateTimetable } from '@/lib/scheduling/generator'
+import { PrerequisiteEngine } from '@/lib/scheduling/prerequisites'
+import { PredictiveAnalyzer } from '@/lib/intelligence/predictive-analysis'
+import { DelegationPolicy } from '@/lib/intelligence/delegation-policy'
+import { HistoryEngine } from '@/lib/intelligence/history/execution-history'
+
 import type { DayOfWeek } from '@/types'
 
 export async function POST(request: NextRequest) {
@@ -45,7 +51,6 @@ export async function POST(request: NextRequest) {
     return acc
   }, {} as Record<string, string[]>)
 
-  // Prepare data for OR-Tools solver
   const solverInput = {
     config: {
       days: validDays,
@@ -63,22 +68,17 @@ export async function POST(request: NextRequest) {
         return {
           subject: sid,
           weekly_periods: sub?.periods_per_week || 1,
-          teacher_id: sub?.teacher_ids?.[0] || 'Unknown', // Simplification: taking first teacher
+          teacher_id: sub?.teacher_ids?.[0] || 'Unknown',
         }
       })
     })),
-    // Preferences can be added here if we have a table for them
     preferences: (teachersResult.data ?? []).reduce((acc: any, t) => {
       if (t.availability) {
-        // Availability in V3 is Record<DayOfWeek, number[]> where number[] are available periods
-        // The solver expects unavailable periods for easier constraints
         const unavail: any = {};
         validDays.forEach((day, idx) => {
           const availPeriods = t.availability[day] || [];
           const unavailPeriods = Array.from({length: periodsPerDay}, (_, i) => i).filter(p => !availPeriods.includes(p + 1));
-          if (unavailPeriods.length > 0) {
-            unavail[idx] = unavailPeriods;
-          }
+          if (unavailPeriods.length > 0) unavail[idx] = unavailPeriods;
         });
         acc[t.id] = { unavailable_periods: unavail };
       }
@@ -86,38 +86,118 @@ export async function POST(request: NextRequest) {
     }, {})
   }
 
+  // --- ADAPTIVE OPTIMIZATION ROUTING ---
+  const prereqEngine = new PrerequisiteEngine({
+    // In production, these would be fetched from a DB table
+    'physics_id': ['math_id'], 
+    'organic_chem_id': ['chem_bonding_id']
+  })
+
+  const analyzer = new PredictiveAnalyzer(
+    teachersResult.data ?? [],
+    classesResult.data ?? [],
+    subjectsResult.data ?? [],
+    classSubjectMap,
+    prereqEngine
+  )
+
+  const intelligence = analyzer.analyze()
+  const decision = DelegationPolicy.decide(
+    intelligence.forecast,
+    intelligence.resourcePressure,
+    intelligence.dependencyRisk
+  )
+
+  const executionTrace = {
+    termId,
+    mode: decision.mode,
+    reasoning: decision.reasoning,
+    strategy: decision.strategy,
+    forecastProbability: intelligence.forecast.probability,
+    timestamp: new Date().toISOString()
+  }
+
+  console.log(`[ORCHESTRATOR] Routing to ${decision.mode}: ${decision.reasoning}`)
+  const startTime = Date.now()
+
   try {
-    const entries = await solveWithORTools(solverInput)
+    let entries: any[] = []
+    let fallbackTriggered = false
+
+    // ROUTING LOGIC
+    if (decision.mode === 'EMERGENCY_DRAFT') {
+      entries = generateTimetable({
+        termId,
+        classes: classesResult.data ?? [],
+        teachers: teachersResult.data ?? [],
+        subjects: subjectsResult.data ?? [],
+        periodsPerDay,
+        lessonSlotNumbers: Array.from({length: periodsPerDay}, (_, i) => i + 1),
+        workingDays: validDays,
+        classSubjectMap,
+      })
+    } else {
+      entries = await solveWithORTools(solverInput)
+    }
+
+    const solveTimeMs = Date.now() - startTime
+
+    if (entries.length === 0) {
+      console.warn('[ORCHESTRATOR] Primary mode failed. Triggering Emergency Recovery.')
+      fallbackTriggered = true
+      entries = generateTimetable({
+        termId,
+        classes: classesResult.data ?? [],
+        teachers: teachersResult.data ?? [],
+        subjects: subjectsResult.data ?? [],
+        periodsPerDay,
+        lessonSlotNumbers: Array.from({length: periodsPerDay}, (_, i) => i + 1),
+        workingDays: validDays,
+        classSubjectMap,
+      })
+    }
+
+    const success = entries.length > 0
+    
+    // --- EXPERIENTIAL INTELLIGENCE: Persisting Trace ---
+    await HistoryEngine.record({
+      ...executionTrace,
+      solveTimeMs,
+      success,
+      fallbackTriggered,
+      bottlenecks: intelligence.forecast.bottlenecks
+    })
+
+    if (!success) {
+      return NextResponse.json({ error: 'Could not generate a feasible timetable even with fallbacks.', trace: executionTrace }, { status: 422 })
+    }
+
     const entriesToSave = entries.map(e => ({ ...e, term_id: termId }));
 
-    if (entriesToSave.length === 0) {
-      return NextResponse.json(
-        { error: 'Could not generate a feasible timetable. Constraints might be too tight.' },
-        { status: 422 }
-      )
-    }
-
-    // Atomically replace entries for selected classes on selected days
-    await supabase
-      .from('timetable_entries')
-      .delete()
-      .eq('term_id', termId)
-      .in('class_id', classIds)
-      .in('day', validDays)
-
+    // Atomic Save
+    await supabase.from('timetable_entries').delete().eq('term_id', termId).in('class_id', classIds).in('day', validDays)
     const { error: insertError } = await supabase.from('timetable_entries').insert(entriesToSave as unknown as Record<string, unknown>[])
     
-    if (insertError) {
-      return NextResponse.json({ error: 'Failed to save timetable' }, { status: 500 })
-    }
+    if (insertError) throw new Error('Failed to save entries')
 
     return NextResponse.json({ 
       success: true, 
       days: validDays, 
-      entriesCreated: entriesToSave.length 
+      entriesCreated: entriesToSave.length,
+      trace: { ...executionTrace, solveTimeMs, fallbackTriggered }
     })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'Solver failed' }, { status: 500 })
+    // Record failure in history
+    await HistoryEngine.record({
+      ...executionTrace,
+      solveTimeMs: Date.now() - startTime,
+      success: false,
+      fallbackTriggered: false,
+      bottlenecks: [error.message || 'Unknown routing failure']
+    })
+    return NextResponse.json({ error: error.message || 'Routing failure', trace: executionTrace }, { status: 500 })
   }
 }
+
+
 
