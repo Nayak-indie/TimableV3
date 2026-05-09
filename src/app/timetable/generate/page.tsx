@@ -158,8 +158,8 @@ export default function GenerateTimetablePage() {
                 onClick={() => toggleDay(day)}
                 className={`flex-1 min-w-[60px] h-12 rounded-2xl border-2 transition-all flex items-center justify-center text-sm font-bold ${
                   selectedDays.includes(day)
-                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100'
-                    : 'bg-white border-gray-100 text-gray-400 hover:border-gray-200'
+                    ? 'bg-[var(--accent)] border-[var(--accent)] text-[var(--on-accent)] shadow-lg shadow-[var(--accent-soft)]'
+                    : 'bg-[var(--surface-primary)] border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--accent-soft)]'
                 }`}
               >
                 {day}
@@ -205,24 +205,24 @@ export default function GenerateTimetablePage() {
                   onClick={() => toggleClass(cls.id)}
                   className={`relative flex items-center gap-3 p-4 rounded-3xl border-2 text-left transition-all group ${
                     isSelected 
-                      ? 'bg-indigo-50/50 border-indigo-200 shadow-sm' 
-                      : 'bg-white border-gray-100 hover:border-gray-200'
+                      ? 'bg-[var(--accent-soft)] border-[var(--accent)] shadow-sm' 
+                      : 'bg-[var(--surface-primary)] border-[var(--border-color)] hover:border-[var(--accent-soft)]'
                   }`}
                 >
                   <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                    isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-200'
+                    isSelected ? 'bg-[var(--accent)] border-[var(--accent)] text-[var(--on-accent)]' : 'bg-[var(--surface-primary)] border-[var(--border-color)]'
                   }`}>
                     {isSelected && <Check size={14} strokeWidth={4} />}
                   </div>
                   <div className="min-w-0">
-                    <p className={`text-sm font-bold truncate ${isSelected ? 'text-indigo-900' : 'text-gray-700'}`}>
+                    <p className={`text-sm font-bold truncate ${isSelected ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
                       {cls.name}
                     </p>
-                    <p className="text-[10px] text-gray-400 font-medium uppercase tracking-tight">Grade {cls.grade_level}</p>
+                    <p className="text-[10px] text-[var(--text-secondary)] opacity-60 font-medium uppercase tracking-tight">Grade {cls.grade_level}</p>
                   </div>
                   {isSelected && (
                     <div className="absolute right-3 top-3">
-                      <Sparkles size={12} className="text-indigo-300" />
+                      <Sparkles size={12} className="text-[var(--accent)] opacity-40" />
                     </div>
                   )}
                 </button>

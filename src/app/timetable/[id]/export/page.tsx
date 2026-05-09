@@ -125,9 +125,9 @@ export default function ExportPage() {
             <tbody>
               {lessonSlots.map((slot) => (
                 <tr key={slot.id} className="group">
-                  <td className="border-b border-gray-100 p-3 bg-gray-50/50">
-                    <p className="font-bold text-gray-900">P{slot.number}</p>
-                    <p className="text-[10px] text-gray-500 font-medium">{slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}</p>
+                  <td className="border-b border-[var(--border-color)] p-3 bg-[var(--surface-secondary)]/50">
+                    <p className="font-bold text-[var(--text-primary)]">P{slot.number}</p>
+                    <p className="text-[10px] text-[var(--text-secondary)] font-medium">{slot.start_time.slice(0, 5)} - {slot.end_time.slice(0, 5)}</p>
                   </td>
                   {DAYS.map((day) => {
                     const entry = entryLookup.get(`${day}-${slot.number}`)
@@ -138,15 +138,15 @@ export default function ExportPage() {
                     return (
                       <td
                         key={day}
-                        className="border-b border-gray-100 p-3 transition-colors group-hover:bg-gray-50/30"
-                        style={{ backgroundColor: subject ? `${subject.color_label}08` : undefined }}
+                        className="border-b border-[var(--border-color)] p-3 transition-colors group-hover:bg-[var(--surface-secondary)]/30"
+                        style={{ backgroundColor: subject ? `${subject.color_label}12` : undefined }}
                       >
                         {entry && subject ? (
                           <div className="space-y-1 overflow-hidden">
                             <p className="font-bold text-[13px] leading-tight truncate" style={{ color: subject.color_label }}>
                               {subject.name}
                             </p>
-                            <div className="flex items-center gap-1 text-[10px] text-gray-500 font-medium truncate">
+                            <div className="flex items-center gap-1 text-[10px] text-[var(--text-secondary)] font-medium truncate">
                               {scope.variant === 'teacher' ? (
                                 <><FileText size={10} className="shrink-0" /> <span className="truncate">{classItem?.name ?? ''}</span></>
                               ) : (
@@ -155,7 +155,7 @@ export default function ExportPage() {
                             </div>
                           </div>
                         ) : (
-                          <span className="text-[10px] font-medium text-gray-300 italic">Free</span>
+                          <span className="text-[10px] font-medium text-[var(--text-secondary)] opacity-30 italic">Free</span>
                         )}
                       </td>
                     )
@@ -194,9 +194,9 @@ export default function ExportPage() {
 
         <div className="grid gap-4 md:grid-cols-3">
           <div className="space-y-1.5">
-            <p className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">Scope</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] opacity-60 ml-1">Scope</p>
             <select
-              className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-indigo-500"
+              className="w-full rounded-2xl border border-[var(--border-color)] bg-[var(--surface-secondary)] px-4 py-3 text-sm font-semibold text-[var(--text-primary)] focus:ring-2 focus:ring-[var(--accent)]"
               value={viewMode}
               onChange={(e) => setViewMode(e.target.value as ViewMode)}
             >
@@ -208,9 +208,9 @@ export default function ExportPage() {
 
           {viewMode === 'class' && (
             <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1">
-              <p className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">Select Class</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] opacity-60 ml-1">Select Class</p>
               <select
-                className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-900"
+                className="w-full rounded-2xl border border-[var(--border-color)] bg-[var(--surface-secondary)] px-4 py-3 text-sm font-semibold text-[var(--text-primary)] focus:ring-2 focus:ring-[var(--accent)]"
                 value={activeClassId}
                 onChange={(e) => setActiveClassId(e.target.value)}
               >
@@ -224,9 +224,9 @@ export default function ExportPage() {
 
           {viewMode === 'teacher' && (
             <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1">
-              <p className="text-xs font-bold uppercase tracking-wider text-gray-400 ml-1">Select Teacher</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] opacity-60 ml-1">Select Teacher</p>
               <select
-                className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-900"
+                className="w-full rounded-2xl border border-[var(--border-color)] bg-[var(--surface-secondary)] px-4 py-3 text-sm font-semibold text-[var(--text-primary)] focus:ring-2 focus:ring-[var(--accent)]"
                 value={activeTeacherId}
                 onChange={(e) => setActiveTeacherId(e.target.value)}
               >

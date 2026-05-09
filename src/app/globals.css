@@ -87,7 +87,9 @@
 }
 
 button,
-[role='button'] {
+.btn,
+[type='button'],
+[type='submit'] {
   transition:
     transform 160ms ease,
     box-shadow 160ms ease,
@@ -97,46 +99,37 @@ button,
 }
 
 button:hover,
-[role='button']:hover {
+.btn:hover,
+[type='button']:hover,
+[type='submit']:hover {
   transform: translateY(-1px);
 }
 
 button:active,
-[role='button']:active {
+.btn:active,
+[type='button']:active,
+[type='submit']:active {
   transform: translateY(0);
 }
 
-button,
-.btn,
-[type='button'],
-[type='submit'] {
-  color: var(--button-text) !important;
-  background: linear-gradient(135deg, var(--accent), var(--accent-hover)) !important;
+/* Primary Button Styling - only apply to unstyled or primary-intent buttons if needed */
+.btn-primary,
+button:not([class*='bg-']):not([class*='text-']) {
+  color: var(--button-text);
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
   border: 1px solid color-mix(in srgb, var(--accent) 38%, white);
   box-shadow: var(--shadow-primary);
 }
 
-button:hover,
-.btn:hover,
-[type='button']:hover,
-[type='submit']:hover {
-  color: var(--button-text) !important;
-  background: linear-gradient(135deg, var(--accent-hover), color-mix(in srgb, var(--accent-hover) 82%, black)) !important;
-}
-
-button * ,
-.btn *,
-[type='button'] *,
-[type='submit'] * {
-  color: inherit !important;
-  fill: currentColor !important;
-  stroke: currentColor !important;
+.btn-primary:hover,
+button:not([class*='bg-']):not([class*='text-']):hover {
+  background: linear-gradient(135deg, var(--accent-hover), color-mix(in srgb, var(--accent-hover) 82%, black));
 }
 
 [class*='bg-white'],
 [class*='bg-slate-50'],
 [class*='bg-gray-50'] {
-  color: var(--text-primary) !important;
+  color: var(--text-primary);
 }
 
 .dashboard-block,
