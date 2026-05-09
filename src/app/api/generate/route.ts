@@ -5,15 +5,17 @@ import type { DayOfWeek } from '@/types'
 
 export async function POST(request: NextRequest) {
   const supabase = createServerSupabaseClient()
-  const { termId, classIds, scope, day } = await request.json()
+  const { termId, classIds, days } = await request.json()
+  
   if (!termId || !Array.isArray(classIds) || classIds.length === 0) {
     return NextResponse.json({ error: 'termId and classIds are required' }, { status: 400 })
   }
 
-  const normalizedScope = scope === 'day' ? 'day' : 'week'
-  const normalizedDay = (['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as DayOfWeek[]).includes(day as DayOfWeek) ? (day as DayOfWeek) : null
-  if (normalizedScope === 'day' && !normalizedDay) {
-    return NextResponse.json({ error: 'day is required when scope is day' }, { status: 400 })
+  const selectedDays = (Array.isArray(days) ? days : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']) as DayOfWeek[]
+  const validDays = selectedDays.filter(d => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(d))
+
+  if (validDays.length === 0) {
+    return NextResponse.json({ error: 'At least one valid day is required' }, { status: 400 })
   }
 
   const [classesResult, teachersResult, subjectsResult, slotsResult] = await Promise.all([
@@ -36,6 +38,7 @@ export async function POST(request: NextRequest) {
   const lessonSlotNumbers = (slotsResult.data ?? [])
     .map((slot) => Number(slot.number))
     .filter((number) => Number.isFinite(number))
+    
   const classSubjectMap = (linksResult.data ?? []).reduce((acc: Record<string, string[]>, row) => {
     const classId = row.class_id
     const subjectId = row.subject_id
@@ -44,6 +47,8 @@ export async function POST(request: NextRequest) {
     acc[classId].push(subjectId)
     return acc
   }, {} as Record<string, string[]>)
+
+  // Generate full potential timetable
   const entries = generateTimetable({
     termId,
     classes: classesResult.data ?? [],
@@ -55,25 +60,33 @@ export async function POST(request: NextRequest) {
     classSubjectMap,
   })
 
-  const entriesToSave = normalizedScope === 'day' && normalizedDay ? entries.filter((entry) => entry.day === normalizedDay) : entries
+  // Filter only for selected days
+  const entriesToSave = entries.filter((entry) => validDays.includes(entry.day as DayOfWeek))
 
   if (entriesToSave.length === 0) {
     return NextResponse.json(
-      { error: 'Could not place entries. Check teacher availability/limits and subject-teacher mapping.' },
+      { error: 'Could not place entries for the selected days. Check teacher availability/limits.' },
       { status: 422 }
     )
   }
 
-  if (normalizedScope === 'day' && normalizedDay) {
-    await supabase.from('timetable_entries').delete().eq('term_id', termId).in('class_id', classIds).eq('day', normalizedDay)
-  } else {
-    await supabase.from('timetable_entries').delete().eq('term_id', termId).in('class_id', classIds)
-  }
+  // Atomically replace entries for selected classes on selected days
+  await supabase
+    .from('timetable_entries')
+    .delete()
+    .eq('term_id', termId)
+    .in('class_id', classIds)
+    .in('day', validDays)
 
   const { error: insertError } = await supabase.from('timetable_entries').insert(entriesToSave as unknown as Record<string, unknown>[])
+  
   if (insertError) {
     return NextResponse.json({ error: 'Failed to save timetable' }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true, scope: normalizedScope, day: normalizedDay, entriesCreated: entriesToSave.length })
+  return NextResponse.json({ 
+    success: true, 
+    days: validDays, 
+    entriesCreated: entriesToSave.length 
+  })
 }
