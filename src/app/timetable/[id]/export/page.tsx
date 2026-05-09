@@ -3,7 +3,7 @@
 import { useMemo, useState, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { useReactToPrint } from 'react-to-print'
-import { Download, FileText, Printer, Users } from 'lucide-react'
+import { AlertTriangle, Download, FileText, Printer, Users } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import { supabase } from '@/lib/supabase/client'
@@ -73,6 +73,9 @@ export default function ExportPage() {
   const classMap = useMemo(() => new Map(classes.map((item) => [item.id, item])), [classes])
   const teacherMap = useMemo(() => new Map(teachers.map((item) => [item.id, item])), [teachers])
   const subjectMap = useMemo(() => new Map(subjects.map((item) => [item.id, item])), [subjects])
+
+  const activeClass = useMemo(() => classMap.get(activeClassId), [classMap, activeClassId])
+  const activeTeacher = useMemo(() => teacherMap.get(activeTeacherId), [teacherMap, activeTeacherId])
 
   const filteredEntries = useMemo(() => {
     if (viewMode === 'teacher') {
