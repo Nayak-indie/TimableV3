@@ -139,15 +139,15 @@ export default function ExportPage() {
                         style={{ backgroundColor: subject ? `${subject.color_label}08` : undefined }}
                       >
                         {entry && subject ? (
-                          <div className="space-y-1">
-                            <p className="font-bold text-sm leading-tight" style={{ color: subject.color_label }}>
+                          <div className="space-y-1 overflow-hidden">
+                            <p className="font-bold text-[13px] leading-tight truncate" style={{ color: subject.color_label }}>
                               {subject.name}
                             </p>
-                            <div className="flex items-center gap-1 text-[10px] text-gray-500 font-medium">
+                            <div className="flex items-center gap-1 text-[10px] text-gray-500 font-medium truncate">
                               {scope.variant === 'teacher' ? (
-                                <><FileText size={10} /> {classItem?.name ?? ''}</>
+                                <><FileText size={10} className="shrink-0" /> <span className="truncate">{classItem?.name ?? ''}</span></>
                               ) : (
-                                <><Users size={10} /> {teacher?.name ?? ''}</>
+                                <><Users size={10} className="shrink-0" /> <span className="truncate">{teacher?.name ?? ''}</span></>
                               )}
                             </div>
                           </div>

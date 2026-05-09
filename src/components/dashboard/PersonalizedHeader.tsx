@@ -5,7 +5,7 @@ import { useInitialPreferences } from '@/components/layout/AppShell'
 export default function PersonalizedHeader() {
   const prefs = useInitialPreferences()
   return (
-    <p className="text-sm text-gray-500 mt-1">
+    <p className="text-sm text-gray-500 mt-1 truncate">
       {prefs.schoolName} · {prefs.academicYear}
     </p>
   )

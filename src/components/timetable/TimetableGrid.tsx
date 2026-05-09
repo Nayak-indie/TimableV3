@@ -51,8 +51,8 @@ export default function TimetableGrid({ entries, periodSlots, teachers, subjects
                   borderColor: subject ? `${subject.color_label}40` : '#e5e7eb',
                 }}
               >
-                <p className="text-sm font-semibold" style={{ color: subject?.color_label ?? '#475569' }}>{subject?.name ?? 'Free period'}</p>
-                <p className="text-xs text-gray-500">{teacher?.name ?? ''}</p>
+                <p className="text-sm font-semibold truncate" style={{ color: subject?.color_label ?? '#475569' }}>{subject?.name ?? 'Free period'}</p>
+                <p className="text-xs text-gray-500 truncate">{teacher?.name ?? ''}</p>
               </div>
             </div>
           )
