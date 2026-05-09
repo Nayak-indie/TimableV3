@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { Edit2, MoreHorizontal, Trash2, Info } from 'lucide-react'
 import type { DayOfWeek, PeriodSlot, Subject, Teacher, TimetableEntry } from '@/types'
 import { updateSessionState } from '@/lib/app-memory'
+import MoreOptions from '@/components/ui/MoreOptions'
 
 interface TimetableGridProps {
   entries: TimetableEntry[]
@@ -45,14 +47,28 @@ export default function TimetableGrid({ entries, periodSlots, teachers, subjects
             <div key={slot.id} className="w-full flex items-center gap-4 px-4 py-4 bg-white">
               <div className="w-14 text-center"><p className="text-lg font-bold">{slot.number}</p></div>
               <div
-                className="flex-1 rounded-2xl px-3 py-2.5 border"
+                className="flex-1 rounded-2xl px-3 py-2.5 border relative group transition-all"
                 style={{
-                  backgroundColor: subject ? `${subject.color_label}18` : '#f8fafc',
-                  borderColor: subject ? `${subject.color_label}40` : '#e5e7eb',
+                  backgroundColor: subject ? `${subject.color_label}12` : 'var(--surface-secondary)',
+                  borderColor: subject ? `${subject.color_label}30` : 'var(--border-color)',
                 }}
               >
-                <p className="text-sm font-semibold truncate" style={{ color: subject?.color_label ?? '#475569' }}>{subject?.name ?? 'Free period'}</p>
-                <p className="text-xs text-gray-500 truncate">{teacher?.name ?? ''}</p>
+                <div className="pr-8">
+                  <p className="text-sm font-semibold truncate" style={{ color: subject?.color_label ?? 'var(--text-primary)' }}>
+                    {subject?.name ?? 'Free period'}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">{teacher?.name ?? ''}</p>
+                </div>
+
+                <div className="absolute right-2 top-2">
+                  <MoreOptions 
+                    options={[
+                      { label: 'Edit Period', icon: <Edit2 size={14} />, onClick: () => alert('Edit period logic here') },
+                      { label: 'View Details', icon: <Info size={14} />, onClick: () => alert('View details') },
+                      { label: 'Remove', icon: <Trash2 size={14} />, variant: 'danger', onClick: () => confirm('Remove this entry?') },
+                    ]}
+                  />
+                </div>
               </div>
             </div>
           )

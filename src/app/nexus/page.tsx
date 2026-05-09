@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Filter, Network, RefreshCcw, Search } from 'lucide-react'
+import { CalendarDays, Edit2, Filter, Network, RefreshCcw, Search, Settings, Trash2 } from 'lucide-react'
+import MoreOptions from '@/components/ui/MoreOptions'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
@@ -363,14 +364,24 @@ export default function NexusPage() {
               if (!pos) return null
               const load = aggregates.classLoad.get(item.id) ?? 0
               return (
-                <g key={item.id}>
-                  <rect x={pos.x} y={pos.y} width={layout.nodeWidth} height={layout.nodeHeight} rx="12" fill="var(--surface-elevated)" stroke="var(--border-color)" />
+                <g key={item.id} className="group/node">
+                  <rect x={pos.x} y={pos.y} width={layout.nodeWidth} height={layout.nodeHeight} rx="12" fill="var(--surface-elevated)" stroke="var(--border-color)" className="transition-colors group-hover/node:stroke-[var(--accent)]" />
                   <text x={pos.x + 12} y={pos.y + 19} fill="var(--text-primary)" fontSize="12" fontWeight="650">
                     {cleanLabel(item.name)}
                   </text>
-                  <text x={pos.x + layout.nodeWidth - 12} y={pos.y + 19} fill="var(--text-secondary)" fontSize="11" fontWeight="700" textAnchor="end">
+                  <text x={pos.x + layout.nodeWidth - 38} y={pos.y + 19} fill="var(--text-secondary)" fontSize="11" fontWeight="700" textAnchor="end">
                     {load}
                   </text>
+                  <foreignObject x={pos.x + layout.nodeWidth - 32} y={pos.y + 1} width="30" height="28">
+                    <MoreOptions 
+                      align="right"
+                      options={[
+                        { label: 'Edit Class', icon: <Edit2 size={14} />, onClick: () => alert('Edit class') },
+                        { label: 'Rename', icon: <Settings size={14} />, onClick: () => alert('Rename class') },
+                        { label: 'Remove', icon: <Trash2 size={14} />, variant: 'danger', onClick: () => alert('Remove class') },
+                      ]}
+                    />
+                  </foreignObject>
                 </g>
               )
             })}
@@ -380,15 +391,25 @@ export default function NexusPage() {
               if (!pos) return null
               const load = aggregates.subjectLoad.get(item.id) ?? 0
               return (
-                <g key={item.id}>
-                  <rect x={pos.x} y={pos.y} width={layout.nodeWidth} height={layout.nodeHeight} rx="12" fill="var(--surface-elevated)" stroke="var(--border-color)" />
+                <g key={item.id} className="group/node">
+                  <rect x={pos.x} y={pos.y} width={layout.nodeWidth} height={layout.nodeHeight} rx="12" fill="var(--surface-elevated)" stroke="var(--border-color)" className="transition-colors group-hover/node:stroke-[var(--accent)]" />
                   <rect x={pos.x + 10} y={pos.y + 10} width="10" height="10" rx="3" fill={item.color_label} filter="url(#softGlow)" />
                   <text x={pos.x + 28} y={pos.y + 19} fill="var(--text-primary)" fontSize="12" fontWeight="650">
                     {cleanLabel(item.name)}
                   </text>
-                  <text x={pos.x + layout.nodeWidth - 12} y={pos.y + 19} fill="var(--text-secondary)" fontSize="11" fontWeight="700" textAnchor="end">
+                  <text x={pos.x + layout.nodeWidth - 38} y={pos.y + 19} fill="var(--text-secondary)" fontSize="11" fontWeight="700" textAnchor="end">
                     {load}
                   </text>
+                  <foreignObject x={pos.x + layout.nodeWidth - 32} y={pos.y + 1} width="30" height="28">
+                    <MoreOptions 
+                      align="right"
+                      options={[
+                        { label: 'Edit Subject', icon: <Edit2 size={14} />, onClick: () => alert('Edit subject') },
+                        { label: 'Configure', icon: <Settings size={14} />, onClick: () => alert('Configure subject') },
+                        { label: 'Remove', icon: <Trash2 size={14} />, variant: 'danger', onClick: () => alert('Remove subject') },
+                      ]}
+                    />
+                  </foreignObject>
                 </g>
               )
             })}
@@ -398,14 +419,24 @@ export default function NexusPage() {
               if (!pos) return null
               const load = aggregates.teacherLoad.get(item.id) ?? 0
               return (
-                <g key={item.id}>
-                  <rect x={pos.x} y={pos.y} width={layout.nodeWidth} height={layout.nodeHeight} rx="12" fill="var(--surface-elevated)" stroke="var(--border-color)" />
+                <g key={item.id} className="group/node">
+                  <rect x={pos.x} y={pos.y} width={layout.nodeWidth} height={layout.nodeHeight} rx="12" fill="var(--surface-elevated)" stroke="var(--border-color)" className="transition-colors group-hover/node:stroke-[var(--accent)]" />
                   <text x={pos.x + 12} y={pos.y + 19} fill="var(--text-primary)" fontSize="12" fontWeight="650">
                     {cleanLabel(item.name)}
                   </text>
-                  <text x={pos.x + layout.nodeWidth - 12} y={pos.y + 19} fill="var(--text-secondary)" fontSize="11" fontWeight="700" textAnchor="end">
+                  <text x={pos.x + layout.nodeWidth - 38} y={pos.y + 19} fill="var(--text-secondary)" fontSize="11" fontWeight="700" textAnchor="end">
                     {load}
                   </text>
+                  <foreignObject x={pos.x + layout.nodeWidth - 32} y={pos.y + 1} width="30" height="28">
+                    <MoreOptions 
+                      align="right"
+                      options={[
+                        { label: 'Edit Teacher', icon: <Edit2 size={14} />, onClick: () => alert('Edit teacher') },
+                        { label: 'Availability', icon: <CalendarDays size={14} />, onClick: () => alert('Set availability') },
+                        { label: 'Remove', icon: <Trash2 size={14} />, variant: 'danger', onClick: () => alert('Remove teacher') },
+                      ]}
+                    />
+                  </foreignObject>
                 </g>
               )
             })}

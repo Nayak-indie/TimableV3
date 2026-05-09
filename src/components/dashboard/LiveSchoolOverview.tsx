@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { CalendarDays, Sparkles } from 'lucide-react'
+import { CalendarDays, Sparkles, Edit2, Plus, Settings, Trash2 } from 'lucide-react'
+import MoreOptions from '@/components/ui/MoreOptions'
 import Card from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
 import { useDevDataSync } from '@/lib/dev/use-dev-data-sync'
@@ -115,22 +116,47 @@ export default function LiveSchoolOverview({ compact = false }: { compact?: bool
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
-        <Card className="space-y-1">
+        <Card className="space-y-1 relative group">
           <CalendarDays size={18} className="text-indigo-500" />
           <p className="text-2xl font-bold">{summary.timetableEntries}</p>
           <p className="text-xs text-gray-500">Scheduled entries</p>
+          <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <MoreOptions 
+              options={[
+                { label: 'Manage Timetable', icon: <CalendarDays size={14} />, onClick: () => alert('Manage') },
+                { label: 'Export PDF', icon: <Sparkles size={14} />, onClick: () => alert('Export') },
+              ]}
+            />
+          </div>
         </Card>
-        <Card className="space-y-1">
+        <Card className="space-y-1 relative group">
           <Sparkles size={18} className="text-violet-500" />
           <p className="text-2xl font-bold">{summary.events}</p>
           <p className="text-xs text-gray-500">Events this week</p>
+          <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <MoreOptions 
+              options={[
+                { label: 'View Events', icon: <Sparkles size={14} />, onClick: () => alert('View') },
+                { label: 'Add Event', icon: <Plus size={14} />, onClick: () => alert('Add') },
+              ]}
+            />
+          </div>
         </Card>
       </div>
 
-      <Card className="space-y-3">
+      <Card className="space-y-3 relative group">
         <div className="flex items-center justify-between">
           <p className="text-sm font-semibold text-gray-800">Status</p>
-          <Badge label={readiness >= 80 ? 'Ready' : 'Needs setup'} variant={readiness >= 80 ? 'success' : 'warning'} />
+          <div className="flex items-center gap-2">
+            <Badge label={readiness >= 80 ? 'Ready' : 'Needs setup'} variant={readiness >= 80 ? 'success' : 'warning'} />
+            <MoreOptions 
+              options={[
+                { label: 'Edit Term', icon: <Edit2 size={14} />, onClick: () => alert('Edit') },
+                { label: 'Full Report', icon: <Settings size={14} />, onClick: () => alert('Report') },
+                { label: 'Reset Data', icon: <Trash2 size={14} />, variant: 'danger', onClick: () => alert('Reset') },
+              ]}
+            />
+          </div>
         </div>
         <p className="text-xs text-gray-500">
           Active term: {summary.activeTerm} | Classes: {summary.classes} | Teachers: {summary.teachers} | Subjects: {summary.subjects}
