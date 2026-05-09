@@ -419,8 +419,8 @@ export async function resetSampleData(supabase: AppSupabaseClient) {
   ])
   assertSupabaseOk(sampleClassesRes, 'List sample classes')
   assertSupabaseOk(sampleSubjectsRes, 'List sample subjects')
-  const sampleClassIds = ((sampleClassesRes.data ?? []) as Array<Record<string, unknown>>).map((row) => String(row.id ?? '')).filter(Boolean)
-  const sampleSubjectIds = ((sampleSubjectsRes.data ?? []) as Array<Record<string, unknown>>).map((row) => String(row.id ?? '')).filter(Boolean)
+  const sampleClassIds = (sampleClassesRes.data ?? []).map((row) => row.id).filter(Boolean)
+  const sampleSubjectIds = (sampleSubjectsRes.data ?? []).map((row) => row.id).filter(Boolean)
 
   if (sampleClassIds.length > 0) {
     const res = await supabase.from('class_subject_links').delete().in('class_id', sampleClassIds)

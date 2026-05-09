@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, RotateCcw } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
-import { APP_MEMORY_EVENT, clearAppMemory, readAppMemory } from '@/lib/app-memory'
+import { clearAppMemory, useAppMemory } from '@/lib/app-memory'
 
 function formatTimestamp(value: string) {
   const date = new Date(value)
@@ -14,24 +14,13 @@ function formatTimestamp(value: string) {
 }
 
 export default function HistoryPage() {
-  const [memory, setMemory] = useState(() => readAppMemory())
-
-  useEffect(() => {
-    const handle = () => setMemory(readAppMemory())
-    window.addEventListener(APP_MEMORY_EVENT, handle)
-    window.addEventListener('storage', handle)
-    return () => {
-      window.removeEventListener(APP_MEMORY_EVENT, handle)
-      window.removeEventListener('storage', handle)
-    }
-  }, [])
+  const memory = useAppMemory()
 
   const events = useMemo(() => memory.history ?? [], [memory.history])
 
   const resetSession = () => {
     if (!window.confirm('Reset session memory and history? This does not delete your timetable data.')) return
     clearAppMemory()
-    setMemory(readAppMemory())
   }
 
   return (
@@ -80,4 +69,3 @@ export default function HistoryPage() {
     </div>
   )
 }
-

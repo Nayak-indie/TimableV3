@@ -34,12 +34,11 @@ export async function POST(request: NextRequest) {
 
   const periodsPerDay = slotsResult.data?.length ?? 6
   const lessonSlotNumbers = (slotsResult.data ?? [])
-    .map((slot) => Number((slot as Record<string, unknown>)?.number))
+    .map((slot) => Number(slot.number))
     .filter((number) => Number.isFinite(number))
   const classSubjectMap = (linksResult.data ?? []).reduce((acc: Record<string, string[]>, row) => {
-    const typedRow = row as Record<string, unknown>
-    const classId = String(typedRow.class_id ?? '')
-    const subjectId = String(typedRow.subject_id ?? '')
+    const classId = row.class_id
+    const subjectId = row.subject_id
     if (!classId || !subjectId) return acc
     if (!acc[classId]) acc[classId] = []
     acc[classId].push(subjectId)

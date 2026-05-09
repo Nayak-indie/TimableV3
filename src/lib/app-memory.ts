@@ -1,3 +1,6 @@
+'use client'
+
+import { useSyncExternalStore } from 'react'
 import type { DayOfWeek } from '@/types'
 
 export type GenerateScope = 'week' | 'day'
@@ -104,4 +107,18 @@ export function clearAppMemory() {
   if (typeof window === 'undefined') return
   window.localStorage.removeItem(MEMORY_KEY)
   window.dispatchEvent(new Event(APP_MEMORY_EVENT))
+}
+
+export function subscribeAppMemory(listener: () => void) {
+  if (typeof window === 'undefined') return () => {}
+  window.addEventListener(APP_MEMORY_EVENT, listener)
+  window.addEventListener('storage', listener)
+  return () => {
+    window.removeEventListener(APP_MEMORY_EVENT, listener)
+    window.removeEventListener('storage', listener)
+  }
+}
+
+export function useAppMemory() {
+  return useSyncExternalStore(subscribeAppMemory, readAppMemory, () => defaultMemory)
 }

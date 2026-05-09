@@ -1,4 +1,4 @@
-import type { AppQueryBuilder, AppSupabaseClient, QueryResult } from '../supabase/types'
+import type { AppQueryBuilder, AppSupabaseClient, AppTableDataMap, QueryResult } from '../supabase/types'
 import { createDevId, normalizeDevDb, type DevDb, type DevRow, type DevTableName } from './dev-db'
 
 type OrderSpec = { column: string; ascending: boolean }
@@ -78,7 +78,9 @@ function resolveTableAlias(table: string): DevTableName {
   return table as DevTableName
 }
 
-class DevQueryBuilder implements AppQueryBuilder {
+type SingleRow<TData> = TData extends Array<infer TRow> ? TRow : TData
+
+class DevQueryBuilder<TData = unknown> implements AppQueryBuilder<TData> {
   private filters: Filter[] = []
 
   private orderSpecs: OrderSpec[] = []
@@ -161,19 +163,19 @@ class DevQueryBuilder implements AppQueryBuilder {
     return this
   }
 
-  single() {
+  single(): AppQueryBuilder<SingleRow<TData>> {
     this.expectSingle = true
-    return this
+    return this as unknown as AppQueryBuilder<SingleRow<TData>>
   }
 
-  async then<TResult1 = QueryResult, TResult2 = never>(
-    onfulfilled?: ((value: QueryResult) => TResult1 | PromiseLike<TResult1>) | null,
+  async then<TResult1 = QueryResult<TData>, TResult2 = never>(
+    onfulfilled?: ((value: QueryResult<TData>) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
   ) {
     return this.execute().then(onfulfilled, onrejected)
   }
 
-  private async execute(): Promise<QueryResult> {
+  private async execute(): Promise<QueryResult<TData>> {
     const db = normalizeDevDb(await this.backend.readDb())
     const tableKey = resolveTableAlias(this.table)
     const rows = db[tableKey] ?? []
@@ -188,7 +190,7 @@ class DevQueryBuilder implements AppQueryBuilder {
       db[tableKey] = [...rows, ...inserted]
       await this.backend.writeDb(db)
       const data = this.expectSingle ? inserted[0] ?? null : inserted
-      return { data, error: null, count: inserted.length }
+      return { data: data as TData, error: null, count: inserted.length }
     }
 
     const filteredRows = applyOrdering(applyFilters(rows, this.filters), this.orderSpecs)
@@ -204,7 +206,7 @@ class DevQueryBuilder implements AppQueryBuilder {
       await this.backend.writeDb(db)
       const resultRows = applyFilters(updatedRows, this.filters)
       const data = this.expectSingle ? resultRows[0] ?? null : resultRows
-      return { data, error: null, count: resultRows.length }
+      return { data: data as TData, error: null, count: resultRows.length }
     }
 
     if (this.operation === 'delete') {
@@ -212,14 +214,14 @@ class DevQueryBuilder implements AppQueryBuilder {
       db[tableKey] = rows.filter((row) => !deletedRows.includes(row))
       await this.backend.writeDb(db)
       const data = this.expectSingle ? deletedRows[0] ?? null : deletedRows
-      return { data, error: null, count: deletedRows.length }
+      return { data: data as TData, error: null, count: deletedRows.length }
     }
 
     const mappedRows = pagedRows.map((row) => pickColumns(row, this.selectColumns))
     const finalData = this.expectSingle ? mappedRows[0] ?? null : mappedRows
     const count = this.head ? totalCount : this.countMode === 'exact' ? totalCount : null
     return {
-      data: this.head ? null : finalData,
+      data: this.head ? null : finalData as TData,
       error: null,
       count,
     }
@@ -229,7 +231,9 @@ class DevQueryBuilder implements AppQueryBuilder {
 export class DevSupabaseClient implements AppSupabaseClient {
   constructor(private backend: DevSupabaseBackend) {}
 
-  from(table: string) {
+  from<TTable extends keyof AppTableDataMap>(table: TTable): AppQueryBuilder<AppTableDataMap[TTable]>
+  from<TData = unknown>(table: string): AppQueryBuilder<TData>
+  from(table: string): AppQueryBuilder<unknown> {
     return new DevQueryBuilder(this.backend, resolveTableAlias(table))
   }
 }
@@ -237,4 +241,3 @@ export class DevSupabaseClient implements AppSupabaseClient {
 export function createDevSupabaseClient(backend: DevSupabaseBackend) {
   return new DevSupabaseClient(backend)
 }
-
