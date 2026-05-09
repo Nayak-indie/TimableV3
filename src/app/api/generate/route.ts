@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { generateTimetable } from '@/lib/scheduling/generator'
+import { solveWithORTools } from '@/lib/scheduling/ortools-solver'
 import type { DayOfWeek } from '@/types'
 
 export async function POST(request: NextRequest) {
@@ -35,9 +35,6 @@ export async function POST(request: NextRequest) {
   }
 
   const periodsPerDay = slotsResult.data?.length ?? 6
-  const lessonSlotNumbers = (slotsResult.data ?? [])
-    .map((slot) => Number(slot.number))
-    .filter((number) => Number.isFinite(number))
     
   const classSubjectMap = (linksResult.data ?? []).reduce((acc: Record<string, string[]>, row) => {
     const classId = row.class_id
@@ -48,45 +45,79 @@ export async function POST(request: NextRequest) {
     return acc
   }, {} as Record<string, string[]>)
 
-  // Generate full potential timetable
-  const entries = generateTimetable({
-    termId,
-    classes: classesResult.data ?? [],
-    teachers: teachersResult.data ?? [],
-    subjects: subjectsResult.data ?? [],
-    periodsPerDay,
-    lessonSlotNumbers,
-    workingDays: termResult.data?.working_days ?? undefined,
-    classSubjectMap,
-  })
-
-  // Filter only for selected days
-  const entriesToSave = entries.filter((entry) => validDays.includes(entry.day as DayOfWeek))
-
-  if (entriesToSave.length === 0) {
-    return NextResponse.json(
-      { error: 'Could not place entries for the selected days. Check teacher availability/limits.' },
-      { status: 422 }
-    )
+  // Prepare data for OR-Tools solver
+  const solverInput = {
+    config: {
+      days: validDays,
+      periods_per_day: periodsPerDay,
+    },
+    teachers: (teachersResult.data ?? []).map(t => ({
+      id: t.id,
+      name: t.name,
+      max_periods_per_day: t.max_periods_per_day || periodsPerDay,
+    })),
+    classes: (classesResult.data ?? []).map(c => ({
+      id: c.id,
+      subjects: (classSubjectMap[c.id] || []).map(sid => {
+        const sub = (subjectsResult.data ?? []).find(s => s.id === sid);
+        return {
+          subject: sid,
+          weekly_periods: sub?.periods_per_week || 1,
+          teacher_id: sub?.teacher_ids?.[0] || 'Unknown', // Simplification: taking first teacher
+        }
+      })
+    })),
+    // Preferences can be added here if we have a table for them
+    preferences: (teachersResult.data ?? []).reduce((acc: any, t) => {
+      if (t.availability) {
+        // Availability in V3 is Record<DayOfWeek, number[]> where number[] are available periods
+        // The solver expects unavailable periods for easier constraints
+        const unavail: any = {};
+        validDays.forEach((day, idx) => {
+          const availPeriods = t.availability[day] || [];
+          const unavailPeriods = Array.from({length: periodsPerDay}, (_, i) => i).filter(p => !availPeriods.includes(p + 1));
+          if (unavailPeriods.length > 0) {
+            unavail[idx] = unavailPeriods;
+          }
+        });
+        acc[t.id] = { unavailable_periods: unavail };
+      }
+      return acc;
+    }, {})
   }
 
-  // Atomically replace entries for selected classes on selected days
-  await supabase
-    .from('timetable_entries')
-    .delete()
-    .eq('term_id', termId)
-    .in('class_id', classIds)
-    .in('day', validDays)
+  try {
+    const entries = await solveWithORTools(solverInput)
+    const entriesToSave = entries.map(e => ({ ...e, term_id: termId }));
 
-  const { error: insertError } = await supabase.from('timetable_entries').insert(entriesToSave as unknown as Record<string, unknown>[])
-  
-  if (insertError) {
-    return NextResponse.json({ error: 'Failed to save timetable' }, { status: 500 })
+    if (entriesToSave.length === 0) {
+      return NextResponse.json(
+        { error: 'Could not generate a feasible timetable. Constraints might be too tight.' },
+        { status: 422 }
+      )
+    }
+
+    // Atomically replace entries for selected classes on selected days
+    await supabase
+      .from('timetable_entries')
+      .delete()
+      .eq('term_id', termId)
+      .in('class_id', classIds)
+      .in('day', validDays)
+
+    const { error: insertError } = await supabase.from('timetable_entries').insert(entriesToSave as unknown as Record<string, unknown>[])
+    
+    if (insertError) {
+      return NextResponse.json({ error: 'Failed to save timetable' }, { status: 500 })
+    }
+
+    return NextResponse.json({ 
+      success: true, 
+      days: validDays, 
+      entriesCreated: entriesToSave.length 
+    })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || 'Solver failed' }, { status: 500 })
   }
-
-  return NextResponse.json({ 
-    success: true, 
-    days: validDays, 
-    entriesCreated: entriesToSave.length 
-  })
 }
+

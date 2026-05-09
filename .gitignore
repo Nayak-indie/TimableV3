@@ -42,3 +42,11 @@ next-env.d.ts
 
 
 .env*
+
+# TimableV2 (cloned for reference)
+/TimableV2/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
