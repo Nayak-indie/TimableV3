@@ -103,6 +103,26 @@ export default function NexusPage() {
 
   useDevDataSync(load, [termId])
 
+  const handleAction = async (table: string, id: string, action: 'rename' | 'remove', currentName: string) => {
+    if (action === 'rename') {
+      const next = prompt(`Rename ${table}:`, currentName)
+      if (!next || next === currentName) return
+      const { error } = await supabase.from(table).update({ name: next }).eq('id', id)
+      if (error) alert('Failed to rename: ' + error.message)
+      else load()
+    } else if (action === 'remove') {
+      if (!confirm(`Are you sure you want to remove this ${table}? This will also delete any timetable entries linked to it.`)) return
+      // Handle cleanup for linked entries if necessary
+      if (table === 'classes') await supabase.from('timetable_entries').delete().eq('class_id', id)
+      if (table === 'teachers') await supabase.from('timetable_entries').delete().eq('teacher_id', id)
+      if (table === 'subjects') await supabase.from('timetable_entries').delete().eq('subject_id', id)
+      
+      const { error } = await supabase.from(table).delete().eq('id', id)
+      if (error) alert('Failed to remove: ' + error.message)
+      else load()
+    }
+  }
+
   const term = useMemo(() => terms.find((item) => item.id === termId) ?? null, [termId, terms])
   const classMap = useMemo(() => new Map(classes.map((item) => [item.id, item])), [classes])
   const teacherMap = useMemo(() => new Map(teachers.map((item) => [item.id, item])), [teachers])
@@ -376,9 +396,9 @@ export default function NexusPage() {
                     <MoreOptions 
                       align="right"
                       options={[
-                        { label: 'Edit Class', icon: <Edit2 size={14} />, onClick: () => alert('Edit class') },
-                        { label: 'Rename', icon: <Settings size={14} />, onClick: () => alert('Rename class') },
-                        { label: 'Remove', icon: <Trash2 size={14} />, variant: 'danger', onClick: () => alert('Remove class') },
+                        { label: 'Edit Class', icon: <Edit2 size={14} />, onClick: () => alert('Advanced edit coming soon') },
+                        { label: 'Rename', icon: <Settings size={14} />, onClick: () => handleAction('classes', item.id, 'rename', item.name) },
+                        { label: 'Remove', icon: <Trash2 size={14} />, variant: 'danger', onClick: () => handleAction('classes', item.id, 'remove', item.name) },
                       ]}
                     />
                   </foreignObject>
@@ -404,9 +424,9 @@ export default function NexusPage() {
                     <MoreOptions 
                       align="right"
                       options={[
-                        { label: 'Edit Subject', icon: <Edit2 size={14} />, onClick: () => alert('Edit subject') },
-                        { label: 'Configure', icon: <Settings size={14} />, onClick: () => alert('Configure subject') },
-                        { label: 'Remove', icon: <Trash2 size={14} />, variant: 'danger', onClick: () => alert('Remove subject') },
+                        { label: 'Edit Subject', icon: <Edit2 size={14} />, onClick: () => alert('Advanced edit coming soon') },
+                        { label: 'Rename', icon: <Settings size={14} />, onClick: () => handleAction('subjects', item.id, 'rename', item.name) },
+                        { label: 'Remove', icon: <Trash2 size={14} />, variant: 'danger', onClick: () => handleAction('subjects', item.id, 'remove', item.name) },
                       ]}
                     />
                   </foreignObject>
@@ -431,9 +451,9 @@ export default function NexusPage() {
                     <MoreOptions 
                       align="right"
                       options={[
-                        { label: 'Edit Teacher', icon: <Edit2 size={14} />, onClick: () => alert('Edit teacher') },
-                        { label: 'Availability', icon: <CalendarDays size={14} />, onClick: () => alert('Set availability') },
-                        { label: 'Remove', icon: <Trash2 size={14} />, variant: 'danger', onClick: () => alert('Remove teacher') },
+                        { label: 'Edit Teacher', icon: <Edit2 size={14} />, onClick: () => alert('Advanced edit coming soon') },
+                        { label: 'Rename', icon: <Settings size={14} />, onClick: () => handleAction('teachers', item.id, 'rename', item.name) },
+                        { label: 'Remove', icon: <Trash2 size={14} />, variant: 'danger', onClick: () => handleAction('teachers', item.id, 'remove', item.name) },
                       ]}
                     />
                   </foreignObject>

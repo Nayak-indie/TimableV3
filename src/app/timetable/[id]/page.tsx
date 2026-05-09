@@ -79,7 +79,15 @@ export default function TimetableDetailsPage() {
           <p className="text-sm text-amber-700">{conflicts.length} teacher conflict(s) detected.</p>
         </Card>
       ) : null}
-      <TimetableGrid key={preferredDay ?? 'Mon'} entries={filteredEntries} periodSlots={slots} teachers={teachers} subjects={subjects} initialDay={preferredDay} />
+      <TimetableGrid 
+        key={preferredDay ?? 'Mon'} 
+        entries={filteredEntries} 
+        periodSlots={slots} 
+        teachers={teachers} 
+        subjects={subjects} 
+        initialDay={preferredDay} 
+        onUpdate={loadTimetable}
+      />
       <div className="px-4 pb-4">
         <Link href={`/timetable/${params.id}/export`}><Button fullWidth variant="secondary">Export / Print</Button></Link>
       </div>
