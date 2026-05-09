@@ -31,7 +31,7 @@ export default function TimetableDetailsPage() {
 
   const loadTimetable = async () => {
     const [entriesRes, slotsRes, teachersRes, subjectsRes, classesRes] = await Promise.all([
-      supabase.from('timetable_entries').select('*').eq('term_id', params.id),
+      supabase.from('timetable_entries').select('*, subject:subjects(name), teacher:teachers(name)').eq('term_id', params.id),
       supabase.from('period_slots').select('*').order('number'),
       supabase.from('teachers').select('*'),
       supabase.from('subjects').select('*'),

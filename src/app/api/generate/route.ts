@@ -51,6 +51,10 @@ export async function POST(request: NextRequest) {
     return acc
   }, {} as Record<string, string[]>)
 
+  console.log(`[GENERATE_API_DEBUG] Classes: ${classesResult.data?.length}, Teachers: ${teachersResult.data?.length}, Subjects: ${subjectsResult.data?.length}, Links: ${linksResult.data?.length}`);
+  console.log(`[GENERATE_API_DEBUG] Input classIds:`, classIds);
+
+
   const solverInput = {
     config: {
       days: validDays,
