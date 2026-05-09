@@ -5,7 +5,7 @@ import {
 } from "@/lib/dev/dev-supabase.client";
 
 /**
- * Ensure env vars exist
+ * Ensure env vars exis
  */
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
