@@ -3,7 +3,7 @@ import { stringifyTeacherMeta } from '@/lib/teacher-meta'
 import { replaceClassSubjectMap } from '@/lib/setup-links'
 import type { ClassSubjectMap } from '@/lib/setup-constants'
 import type { DayOfWeek } from '@/types'
-import { EMPTY_DEV_DB, cloneDevDb, createDevId, hasPublicSupabaseConfig, type DevDb } from './dev-db'
+import { EMPTY_DEV_DB, cloneDevDb, createDevId, shouldUseLocalDevStore, type DevDb } from './dev-db'
 import { readDevDbFile, writeDevDbFile } from './dev-db.server'
 
 export const DEV_SAMPLE_TAG = '[DEV_SAMPLE_TIMABLE_V3]'
@@ -408,7 +408,7 @@ function buildDevSampleSnapshot(): GeneratedSampleSnapshot {
 }
 
 export async function resetSampleData(supabase: AppSupabaseClient) {
-  if (!hasPublicSupabaseConfig()) {
+  if (shouldUseLocalDevStore()) {
     await writeDevDbFile(EMPTY_DEV_DB)
     return
   }
@@ -441,7 +441,7 @@ export async function resetSampleData(supabase: AppSupabaseClient) {
 }
 
 export async function generateSampleData(supabase: AppSupabaseClient) {
-  if (!hasPublicSupabaseConfig()) {
+  if (shouldUseLocalDevStore()) {
     const existing = await readDevDbFile()
     if (hasDevSampleRows(existing)) {
       return buildPayloadFromDevDb(existing)

@@ -1,5 +1,5 @@
 import { createDevSupabaseClient, type DevSupabaseBackend } from './dev-supabase'
-import { hasPublicSupabaseConfig, normalizeDevDb, type DevDb } from './dev-db'
+import { normalizeDevDb, shouldUseLocalDevStore, type DevDb } from './dev-db'
 import { readDevDbFile, writeDevDbFile } from './dev-db.server'
 
 class DevServerBackend implements DevSupabaseBackend {
@@ -17,5 +17,5 @@ export function createDevServerSupabaseClient() {
 }
 
 export function shouldUseDevStore() {
-  return !hasPublicSupabaseConfig()
+  return shouldUseLocalDevStore()
 }

@@ -3,6 +3,10 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
+const noStoreHeaders = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate',
+}
+
 export async function GET() {
   const supabase = createServerSupabaseClient()
   const today = new Date().toISOString().slice(0, 10)
@@ -43,7 +47,7 @@ export async function GET() {
         entriesRes.error?.message ||
         eventsRes.error?.message) ??
       'Failed to fetch summary.'
-    return NextResponse.json({ ok: false, error: message }, { status: 500 })
+    return NextResponse.json({ ok: false, error: message }, { status: 500, headers: noStoreHeaders })
   }
 
   return NextResponse.json({
@@ -55,6 +59,6 @@ export async function GET() {
     periodSlots: slotsRes.count ?? 0,
     timetableEntries: entriesRes.count ?? 0,
     events: eventsRes.count ?? 0,
-  })
+  }, { headers: noStoreHeaders })
 }
 

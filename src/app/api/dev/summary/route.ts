@@ -3,6 +3,10 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
+const noStoreHeaders = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate',
+}
+
 export async function GET() {
   const supabase = createServerSupabaseClient()
   const today = new Date().toISOString().slice(0, 10)
@@ -40,5 +44,5 @@ export async function GET() {
     periodSlots: slotsRes.count ?? 0,
     timetableEntries: entriesRes.count ?? 0,
     events: eventsRes.count ?? 0,
-  })
+  }, { headers: noStoreHeaders })
 }

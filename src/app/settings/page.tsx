@@ -11,6 +11,7 @@ import { CLASS_SUBJECTS_KEY, SUBJECT_META_KEY, type ClassSubjectMap } from '@/li
 import { supabase } from '@/lib/supabase/client'
 import { defaultPreferences, readPreferences, writePreferences } from '@/lib/preferences'
 import { emitDevDataSync } from '@/lib/dev/data-sync'
+import { useDevDataSync } from '@/lib/dev/use-dev-data-sync'
 import { applyThemeToRoot } from '@/lib/theme'
 import { replaceClassSubjectMap } from '@/lib/setup-links'
 import { appendHistoryEvent } from '@/lib/app-memory'
@@ -33,7 +34,30 @@ export default function SettingsPage() {
   const [message, setMessage] = useState('')
   const [sampleDataLog, setSampleDataLog] = useState<Record<string, unknown> | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [hasDomainData, setHasDomainData] = useState(false)
   const readLocal = (key: string) => (typeof window === 'undefined' ? null : localStorage.getItem(key))
+
+  const loadSampleDataStatus = async () => {
+    try {
+      const response = await fetch('/api/data/summary', { cache: 'no-store' })
+      const payload = await response.json().catch(() => null)
+      if (!response.ok || payload?.ok !== true) {
+        setHasDomainData(false)
+        return
+      }
+
+      const total =
+        Number(payload.classes ?? 0) +
+        Number(payload.teachers ?? 0) +
+        Number(payload.subjects ?? 0) +
+        Number(payload.periodSlots ?? 0)
+      setHasDomainData(total > 0)
+    } catch {
+      setHasDomainData(false)
+    }
+  }
+
+  useDevDataSync(loadSampleDataStatus)
 
   const apply = (next: typeof prefs) => {
     setPrefs(next)
@@ -194,6 +218,7 @@ export default function SettingsPage() {
         payload,
       })
       emitDevDataSync()
+      await loadSampleDataStatus()
       router.refresh()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Failed to generate sample data.')
@@ -222,6 +247,7 @@ export default function SettingsPage() {
         payload,
       })
       emitDevDataSync()
+      await loadSampleDataStatus()
       router.refresh()
     } catch {
       setMessage('Failed to reset sample data.')
@@ -350,7 +376,7 @@ export default function SettingsPage() {
           </p>
           <div className="grid grid-cols-2 gap-2">
             <Button onClick={generateSampleData} disabled={isGenerating}>
-              {isGenerating ? 'Working...' : 'Generate Sample Test Data'}
+              {isGenerating ? 'Working...' : hasDomainData ? 'Generate & Input' : 'Generate Sample Test Data'}
             </Button>
             <Button variant="secondary" onClick={resetSampleData} disabled={isGenerating}>
               Reset/Re-generate

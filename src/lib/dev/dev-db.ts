@@ -60,6 +60,10 @@ export function hasServiceRoleKey() {
   return !containsPlaceholder(serviceKey)
 }
 
+export function shouldUseLocalDevStore() {
+  return process.env.NODE_ENV !== 'production' && !hasPublicSupabaseConfig()
+}
+
 export function normalizeDevDb(input: Partial<DevDb> | null | undefined): DevDb {
   return {
     terms: Array.isArray(input?.terms) ? input.terms : [],
